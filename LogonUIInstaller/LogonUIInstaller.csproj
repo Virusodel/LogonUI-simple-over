@@ -5,6 +5,6 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="LogonUI.exe" LogicalName="LogonUI.exe" />
+    <EmbeddedResource Include="..\LogonUI.exe" LogicalName="LogonUI.exe" />
   </ItemGroup>
 </Project>

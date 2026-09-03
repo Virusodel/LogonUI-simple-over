@@ -1,0 +1,46 @@
+name: Build Malicious Components
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '6.0.x'
+    
+    - name: Build Custom LogonUI
+      run: |
+        dotnet new winforms -n CustomLogonUI -f net6.0
+        cd CustomLogonUI
+        # Добавление GIF в ресурсы
+        mkdir Resources
+        copy ../glitch_effect.gif Resources/
+        # Компиляция
+        dotnet build -c Release
+        # Извлечение готового exe
+        copy bin\Release\net6.0\CustomLogonUI.exe ../LogonUI.exe
+    
+    - name: Build Installer
+      run: |
+        dotnet new console -n LogonUIInstaller -f net6.0
+        cd LogonUIInstaller
+        # Встраивание LogonUI в ресурсы
+        mkdir Resources
+        copy ../LogonUI.exe Resources/
+        dotnet build -c Release
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: malicious-build
+        path: |
+          LogonUIInstaller/bin/Release/net6.0/LogonUIInstaller.exe
+          LogonUI.exe

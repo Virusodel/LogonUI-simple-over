@@ -1,8 +1,9 @@
-// CustomLogonUI.cs - БЕЗ ОШИБКИ
+// CustomLogonUI.cs - КОНСОЛЬНОЕ ПРИЛОЖЕНИЕ
 using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace CustomLogonUI
 {
@@ -41,7 +42,6 @@ namespace CustomLogonUI
             
             this.Controls.Add(pictureBox);
             
-            // Скрываем таскбар
             IntPtr taskbar = FindWindow("Shell_TrayWnd", null);
             if (taskbar != IntPtr.Zero)
                 ShowWindow(taskbar, SW_HIDE);
@@ -93,7 +93,20 @@ namespace CustomLogonUI
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new GlitchScreen());
+            
+            // Запускаем форму в отдельном потоке, чтобы не блокировать консоль
+            Thread formThread = new Thread(() =>
+            {
+                Application.Run(new GlitchScreen());
+            });
+            formThread.SetApartmentState(ApartmentState.STA);
+            formThread.Start();
+            
+            // Держим консоль живой (LogonUI должен висеть)
+            while (true)
+            {
+                Thread.Sleep(1000);
+            }
         }
     }
 }

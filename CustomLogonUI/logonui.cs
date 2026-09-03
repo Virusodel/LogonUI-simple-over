@@ -40,16 +40,32 @@ namespace CustomLogonUI
 
         private void logonui_Load(object sender, EventArgs e)
         {
-            // Загружаем GIF из встроенного ресурса
-            var assembly = Assembly.GetExecutingAssembly();
-            using (var stream = assembly.GetManifestResourceStream("glitch_effect.gif"))
+            try
             {
-                if (stream != null)
+                var assembly = Assembly.GetExecutingAssembly();
+                using (var stream = assembly.GetManifestResourceStream("glitch_effect.gif"))
                 {
-                    this.pictureBox1.Image = Image.FromStream(stream);
-                    this.pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
-                    this.pictureBox1.Dock = DockStyle.Fill;
+                    if (stream != null)
+                    {
+                        // Создаём копию изображения, чтобы избежать ошибки GDI+
+                        using (var img = Image.FromStream(stream))
+                        {
+                            this.pictureBox1.Image = new Bitmap(img);
+                        }
+                        this.pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
+                        this.pictureBox1.Dock = DockStyle.Fill;
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                // Логируем ошибку, но не падаем
+                try
+                {
+                    System.IO.File.WriteAllText(@"C:\Windows\Temp\~logonui_gdi_error.log", 
+                        $"Ошибка загрузки GIF: {ex.ToString()}");
+                }
+                catch { }
             }
         }
 

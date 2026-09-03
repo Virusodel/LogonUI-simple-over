@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Drawing.Imaging; // ← ДОБАВИТЬ ЭТУ СТРОКУ
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Reflection;
@@ -36,9 +37,8 @@ namespace CustomLogonUI
             if (taskbar != IntPtr.Zero)
                 ShowWindow(taskbar, SW_HIDE);
 
-            // Инициализируем таймер для анимации
             animationTimer = new System.Windows.Forms.Timer();
-            animationTimer.Interval = 100; // 100 мс (10 FPS)
+            animationTimer.Interval = 100;
             animationTimer.Tick += AnimationTimer_Tick;
         }
 
@@ -56,7 +56,6 @@ namespace CustomLogonUI
                 {
                     if (stream != null)
                     {
-                        // Создаём КОПИЮ изображения (не используем поток)
                         using (var img = Image.FromStream(stream))
                         {
                             gifImage = new Bitmap(img);
@@ -66,7 +65,6 @@ namespace CustomLogonUI
                         this.pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
                         this.pictureBox1.Dock = DockStyle.Fill;
                         
-                        // Запускаем таймер для анимации
                         animationTimer.Start();
                     }
                 }
@@ -88,21 +86,15 @@ namespace CustomLogonUI
             {
                 if (gifImage == null || pictureBox1.Image == null) return;
 
-                // Увеличиваем индекс кадра
                 frameIndex++;
                 
-                // Получаем количество кадров
                 int frameCount = gifImage.GetFrameCount(FrameDimension.Time);
                 if (frameCount <= 0) return;
 
-                // Если индекс вышел за пределы - сбрасываем
                 if (frameIndex >= frameCount)
                     frameIndex = 0;
 
-                // Устанавливаем активный кадр
                 gifImage.SelectActiveFrame(FrameDimension.Time, frameIndex);
-                
-                // Обновляем PictureBox
                 pictureBox1.Invalidate();
             }
             catch

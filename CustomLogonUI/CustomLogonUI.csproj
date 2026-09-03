@@ -6,6 +6,8 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="glitch_effect.gif" LogicalName="glitch_effect.gif" />
+    <!-- Добавляем ресурсы -->
+    <EmbeddedResource Include="Properties\Resources.resx" />
+    <!-- GIF не нужен отдельно, он уже в ресурсах -->
   </ItemGroup>
 </Project>

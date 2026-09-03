@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>   <!-- WinExe, НЕ Exe -->
     <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="..\glitch_effect.gif" LogicalName="glitch_effect.gif" />
+    <EmbeddedResource Include="..\glitch_effect.gif" LogicalName="CustomLogonUI.glitch_effect.gif" />
   </ItemGroup>
 </Project>

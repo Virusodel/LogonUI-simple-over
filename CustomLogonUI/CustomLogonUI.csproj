@@ -6,7 +6,7 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{9DE1EA6D-28DC-4A65-9DD2-4D1D01361AAE}</ProjectGuid>
     <OutputType>WinExe</OutputType>
-    <RootNamespace>logonui</RootNamespace>
+    <RootNamespace>CustomLogonUI</RootNamespace>
     <AssemblyName>LogonUI</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
@@ -26,7 +26,6 @@
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
-    <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
@@ -38,6 +37,9 @@
     </Compile>
     <EmbeddedResource Include="logonui.resx">
       <DependentUpon>logonui.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="glitch_effect.gif">
+      <LogicalName>glitch_effect.gif</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

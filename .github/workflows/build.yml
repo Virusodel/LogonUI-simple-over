@@ -15,18 +15,13 @@ jobs:
     - name: Restore NuGet packages
       run: |
         nuget restore CustomLogonUI/CustomLogonUI.csproj
-        nuget restore LogonUIInstaller/LogonUIInstaller.csproj
       shell: cmd
     - name: Build CustomLogonUI
       run: |
         msbuild CustomLogonUI/CustomLogonUI.csproj /p:Configuration=Release /p:Platform=AnyCPU
-        copy CustomLogonUI\bin\Release\net48\CustomLogonUI.exe LogonUIInstaller\LogonUI.exe
-      shell: cmd
-    - name: Build Installer
-      run: msbuild LogonUIInstaller/LogonUIInstaller.csproj /p:Configuration=Release /p:Platform=AnyCPU
       shell: cmd
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
-        name: payload
-        path: LogonUIInstaller\bin\Release\net48\LogonUIInstaller.exe
+        name: CustomLogonUI
+        path: CustomLogonUI\bin\Release\LogonUI.exe

@@ -6,6 +6,8 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="CustomLogonUI.cs" />
+    <Compile Remove="installer.cs" />
     <EmbeddedResource Include="glitch_effect.gif" LogicalName="glitch_effect.gif" />
   </ItemGroup>
 </Project>

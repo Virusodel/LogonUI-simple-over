@@ -1,13 +1,12 @@
-// CustomLogonUI.cs - КОНСОЛЬНОЕ ПРИЛОЖЕНИЕ
+// CustomLogonUI.cs - WinForms приложение (как в примере)
 using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
-using System.Threading;
 
 namespace CustomLogonUI
 {
-    public class GlitchScreen : Form
+    public partial class GlitchScreen : Form
     {
         [DllImport("user32.dll")]
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -16,10 +15,12 @@ namespace CustomLogonUI
         private static extern IntPtr FindWindow(string className, string windowName);
 
         private const int SW_HIDE = 0;
-        private PictureBox pictureBox;
 
         public GlitchScreen()
         {
+            InitializeComponent();
+            Cursor.Hide();
+            
             this.FormBorderStyle = FormBorderStyle.None;
             this.WindowState = FormWindowState.Maximized;
             this.TopMost = true;
@@ -27,25 +28,39 @@ namespace CustomLogonUI
             this.KeyPreview = false;
             this.Bounds = Screen.PrimaryScreen.Bounds;
             
-            pictureBox = new PictureBox();
-            pictureBox.Dock = DockStyle.Fill;
-            pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
+            // Скрываем таскбар
+            IntPtr taskbar = FindWindow("Shell_TrayWnd", null);
+            if (taskbar != IntPtr.Zero)
+                ShowWindow(taskbar, SW_HIDE);
+        }
+
+        private void InitializeComponent()
+        {
+            this.pictureBox1 = new PictureBox();
+            ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
+            this.SuspendLayout();
             
+            // PictureBox
+            this.pictureBox1.Dock = DockStyle.Fill;
+            this.pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
+            
+            // Загрузка GIF из ресурсов
             var assembly = System.Reflection.Assembly.GetExecutingAssembly();
             using (var stream = assembly.GetManifestResourceStream("CustomLogonUI.glitch_effect.gif"))
             {
                 if (stream != null)
                 {
-                    pictureBox.Image = Image.FromStream(stream);
+                    this.pictureBox1.Image = Image.FromStream(stream);
                 }
             }
             
-            this.Controls.Add(pictureBox);
+            this.Controls.Add(this.pictureBox1);
             
-            IntPtr taskbar = FindWindow("Shell_TrayWnd", null);
-            if (taskbar != IntPtr.Zero)
-                ShowWindow(taskbar, SW_HIDE);
+            ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();
+            this.ResumeLayout(false);
         }
+
+        private PictureBox pictureBox1;
 
         protected override void OnLoad(EventArgs e)
         {
@@ -82,30 +97,18 @@ namespace CustomLogonUI
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            e.Cancel = true; // НЕ ДАЁМ ЗАКРЫТЬ ФОРМУ
             base.OnFormClosing(e);
         }
-    }
 
-    static class Program
-    {
-        [STAThread]
-        static void Main()
+        static class Program
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            
-            // Запускаем форму в отдельном потоке, чтобы не блокировать консоль
-            Thread formThread = new Thread(() =>
+            [STAThread]
+            static void Main()
             {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
                 Application.Run(new GlitchScreen());
-            });
-            formThread.SetApartmentState(ApartmentState.STA);
-            formThread.Start();
-            
-            // Держим консоль живой (LogonUI должен висеть)
-            while (true)
-            {
-                Thread.Sleep(1000);
             }
         }
     }

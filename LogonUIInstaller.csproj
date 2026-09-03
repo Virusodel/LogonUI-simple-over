@@ -3,11 +3,8 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net48</TargetFramework>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <Platforms>AnyCPU</Platforms>
-    <LangVersion>9.0</LangVersion>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="LogonUI.exe" />
-    <Compile Remove="CustomLogonUI.cs" />
+    <EmbeddedResource Include="LogonUI.exe" LogicalName="LogonUI.exe" />
   </ItemGroup>
 </Project>

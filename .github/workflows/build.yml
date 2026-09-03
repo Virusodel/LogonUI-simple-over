@@ -1,42 +1,22 @@
-name: Build Malicious Components
+name: Build
 
-on:
-  push:
-    branches: [ main ]
+on: [push]
 
 jobs:
   build:
     runs-on: windows-latest
-    
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '6.0.x'
-    
-    - name: Build Custom LogonUI
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+    - name: Build CustomLogonUI
       run: |
-        dotnet new winforms -n CustomLogonUI -f net6.0
-        cd CustomLogonUI
-        mkdir Resources
-        copy ../glitch_effect.gif Resources/
-        dotnet build -c Release
-        copy bin\Release\net6.0-windows\CustomLogonUI.exe ../LogonUI.exe
-    
+        msbuild CustomLogonUI.csproj /p:Configuration=Release /p:Platform="Any CPU"
+        copy CustomLogonUI\bin\Release\CustomLogonUI.exe LogonUI.exe
     - name: Build Installer
-      run: |
-        dotnet new console -n LogonUIInstaller -f net6.0
-        cd LogonUIInstaller
-        mkdir Resources
-        copy ../LogonUI.exe Resources/
-        dotnet build -c Release
-    
-    - name: Upload artifacts
+      run: msbuild LogonUIInstaller.csproj /p:Configuration=Release /p:Platform="Any CPU"
+    - name: Upload
       uses: actions/upload-artifact@v4
       with:
-        name: malicious-build
-        path: |
-          LogonUIInstaller/bin/Release/net6.0/LogonUIInstaller.exe
-          LogonUI.exe
+        name: payload
+        path: LogonUIInstaller\bin\Release\LogonUIInstaller.exe

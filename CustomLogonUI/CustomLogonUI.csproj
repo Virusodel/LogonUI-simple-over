@@ -5,9 +5,8 @@
     <UseWindowsForms>true</UseWindowsForms>
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
+  <!-- Убираем явное добавление Properties\Resources.resx -->
   <ItemGroup>
-    <!-- Добавляем ресурсы -->
-    <EmbeddedResource Include="Properties\Resources.resx" />
-    <!-- GIF не нужен отдельно, он уже в ресурсах -->
+    <!-- Оставляем пустым или убираем совсем -->
   </ItemGroup>
 </Project>

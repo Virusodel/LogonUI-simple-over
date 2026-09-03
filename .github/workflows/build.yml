@@ -16,7 +16,8 @@ jobs:
     
     - name: Install .NET Framework 4.0 Targeting Pack
       run: |
-        choco install netfx-4.0-sdk -y
+        curl -L -o vs_buildtools.exe https://aka.ms/vs/17/release/vs_buildtools.exe
+        vs_buildtools.exe --quiet --wait --norestart --installPath "C:\BuildTools" --add Microsoft.VisualStudio.ComponentGroup.NetFramework.Tools --add Microsoft.VisualStudio.Component.Windows10SDK.20348
       shell: cmd
     
     - name: Restore NuGet packages

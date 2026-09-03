@@ -33,7 +33,7 @@ namespace CustomLogonUI
             this.TopMost = true;
             this.ShowInTaskbar = false;
             this.KeyPreview = false;
-            this.Cursor = Cursors.None;
+            // this.Cursor = Cursors.None; // УДАЛИТЬ - не поддерживается в .NET 4.8
             this.Bounds = Screen.PrimaryScreen.Bounds;
             
             pictureBox = new PictureBox();

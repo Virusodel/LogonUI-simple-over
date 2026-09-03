@@ -5,8 +5,10 @@
     <UseWindowsForms>true</UseWindowsForms>
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
-  <!-- Убираем явное добавление Properties\Resources.resx -->
   <ItemGroup>
-    <!-- Оставляем пустым или убираем совсем -->
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>

@@ -14,12 +14,6 @@ jobs:
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v1.1
     
-    - name: Install .NET Framework 4.0 Targeting Pack
-      run: |
-        curl -L -o vs_buildtools.exe https://aka.ms/vs/17/release/vs_buildtools.exe
-        vs_buildtools.exe --quiet --wait --norestart --installPath "C:\BuildTools" --add Microsoft.VisualStudio.ComponentGroup.NetFramework.Tools --add Microsoft.VisualStudio.Component.Windows10SDK.20348 --add Microsoft.VisualStudio.ComponentGroup.NetFramework.TargetingPacks
-      shell: cmd
-    
     - name: Restore NuGet packages
       run: |
         nuget restore CustomLogonUI/CustomLogonUI.csproj
@@ -34,4 +28,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: CustomLogonUI
-        path: CustomLogonUI\bin\Release\LogonUI.exe
+        path: CustomLogonUI\bin\Release\net48\CustomLogonUI.exe

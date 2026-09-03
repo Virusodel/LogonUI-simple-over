@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Forms;
 
-namespace logonui
+namespace CustomLogonUI
 {
     static class Program
     {
@@ -10,7 +10,7 @@ namespace logonui
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new logonui());
+            Application.Run(new GlitchScreen());
         }
     }
 }

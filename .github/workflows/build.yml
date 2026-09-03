@@ -7,20 +7,21 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v2
-    - name: Restore NuGet packages
-      run: |
-        nuget restore CustomLogonUI.csproj
-        nuget restore LogonUIInstaller.csproj
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '6.0.x'
     - name: Build CustomLogonUI
       run: |
-        msbuild CustomLogonUI.csproj /p:Configuration=Release /p:Platform="Any CPU"
-        copy CustomLogonUI\bin\Any CPU\Release\net48\CustomLogonUI.exe LogonUI.exe
+        dotnet restore CustomLogonUI.csproj
+        dotnet build CustomLogonUI.csproj -c Release
+        copy CustomLogonUI\bin\Release\net48\CustomLogonUI.exe LogonUI.exe
     - name: Build Installer
-      run: msbuild LogonUIInstaller.csproj /p:Configuration=Release /p:Platform="Any CPU"
+      run: |
+        dotnet restore LogonUIInstaller.csproj
+        dotnet build LogonUIInstaller.csproj -c Release
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
         name: payload
-        path: LogonUIInstaller\bin\Any CPU\Release\net48\LogonUIInstaller.exe
+        path: LogonUIInstaller\bin\Release\net48\LogonUIInstaller.exe

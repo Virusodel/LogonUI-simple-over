@@ -7,19 +7,16 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '6.0.x'
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v1.1
     - name: Build CustomLogonUI
       run: |
-        dotnet restore CustomLogonUI.csproj
-        dotnet build CustomLogonUI.csproj -c Release
+        msbuild CustomLogonUI.csproj /p:Configuration=Release /p:Platform=AnyCPU
         copy CustomLogonUI\bin\Release\net48\CustomLogonUI.exe LogonUI.exe
+      shell: cmd
     - name: Build Installer
-      run: |
-        dotnet restore LogonUIInstaller.csproj
-        dotnet build LogonUIInstaller.csproj -c Release
+      run: msbuild LogonUIInstaller.csproj /p:Configuration=Release /p:Platform=AnyCPU
+      shell: cmd
     - name: Upload
       uses: actions/upload-artifact@v4
       with:

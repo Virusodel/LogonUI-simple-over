@@ -10,16 +10,25 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
+    
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v1.1
+    
+    - name: Install .NET Framework 4.0 Targeting Pack
+      run: |
+        choco install netfx-4.0-sdk -y
+      shell: cmd
+    
     - name: Restore NuGet packages
       run: |
         nuget restore CustomLogonUI/CustomLogonUI.csproj
       shell: cmd
+    
     - name: Build CustomLogonUI
       run: |
         msbuild CustomLogonUI/CustomLogonUI.csproj /p:Configuration=Release /p:Platform=AnyCPU
       shell: cmd
+    
     - name: Upload
       uses: actions/upload-artifact@v4
       with:

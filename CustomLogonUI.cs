@@ -28,25 +28,18 @@ namespace CustomLogonUI
 
         public GlitchScreen()
         {
-            // Настройка формы на полный экран
             this.FormBorderStyle = FormBorderStyle.None;
             this.WindowState = FormWindowState.Maximized;
             this.TopMost = true;
             this.ShowInTaskbar = false;
-            
-            // Блокировка ввода
             this.KeyPreview = false;
             this.Cursor = Cursors.None;
-            
-            // Захват всего экрана
             this.Bounds = Screen.PrimaryScreen.Bounds;
             
-            // Инициализация PictureBox
             pictureBox = new PictureBox();
             pictureBox.Dock = DockStyle.Fill;
             pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
             
-            // Загрузка GIF из ресурсов
             var assembly = System.Reflection.Assembly.GetExecutingAssembly();
             using (var stream = assembly.GetManifestResourceStream("CustomLogonUI.glitch_effect.gif"))
             {
@@ -57,11 +50,8 @@ namespace CustomLogonUI
             }
             
             this.Controls.Add(pictureBox);
-            
-            // Скрываем стандартные элементы
             HideTaskbar();
             
-            // Таймер для анимации
             timer = new System.Windows.Forms.Timer();
             timer.Interval = 100;
             timer.Tick += (s, e) => pictureBox.Invalidate();
@@ -82,10 +72,8 @@ namespace CustomLogonUI
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            // Захват всех мониторов
             foreach (Screen screen in Screen.AllScreens)
             {
-                // Создаем форму для каждого монитора
                 if (screen != Screen.PrimaryScreen)
                 {
                     var secondaryForm = new GlitchScreen();
@@ -98,7 +86,6 @@ namespace CustomLogonUI
 
         protected override void WndProc(ref Message m)
         {
-            // Блокировка всех системных сообщений
             const int WM_SYSKEYDOWN = 0x0104;
             const int WM_KEYDOWN = 0x0100;
             const int WM_LBUTTONDOWN = 0x0201;
@@ -110,7 +97,7 @@ namespace CustomLogonUI
                 m.Msg == WM_LBUTTONDOWN || m.Msg == WM_RBUTTONDOWN || 
                 m.Msg == WM_MBUTTONDOWN || m.Msg == WM_MOUSEMOVE)
             {
-                return; // Игнорируем ввод
+                return;
             }
             base.WndProc(ref m);
         }

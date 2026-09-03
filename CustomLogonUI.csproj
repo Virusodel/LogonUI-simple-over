@@ -9,5 +9,6 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="glitch_effect.gif" />
+    <Compile Remove="installer.cs" />
   </ItemGroup>
 </Project>

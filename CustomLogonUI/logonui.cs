@@ -1,9 +1,10 @@
 using System;
 using System.Drawing;
-using System.Drawing.Imaging; // ← ДОБАВИТЬ ЭТУ СТРОКУ
+using System.Drawing.Imaging;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Reflection;
+using System.IO;
 
 namespace CustomLogonUI
 {
@@ -17,9 +18,7 @@ namespace CustomLogonUI
 
         private const int SW_HIDE = 0;
 
-        private System.Windows.Forms.Timer animationTimer;
         private Image gifImage;
-        private int frameIndex = 0;
 
         public GlitchScreen()
         {
@@ -36,10 +35,6 @@ namespace CustomLogonUI
             IntPtr taskbar = FindWindow("Shell_TrayWnd", null);
             if (taskbar != IntPtr.Zero)
                 ShowWindow(taskbar, SW_HIDE);
-
-            animationTimer = new System.Windows.Forms.Timer();
-            animationTimer.Interval = 100;
-            animationTimer.Tick += AnimationTimer_Tick;
         }
 
         private void logonui_FormClosing(object sender, FormClosingEventArgs e)
@@ -56,16 +51,22 @@ namespace CustomLogonUI
                 {
                     if (stream != null)
                     {
-                        using (var img = Image.FromStream(stream))
+                        // Копируем поток в MemoryStream, чтобы сохранить данные
+                        using (var ms = new MemoryStream())
                         {
-                            gifImage = new Bitmap(img);
+                            stream.CopyTo(ms);
+                            ms.Position = 0;
+                            
+                            // Загружаем GIF из MemoryStream
+                            gifImage = Image.FromStream(ms);
                         }
                         
                         this.pictureBox1.Image = gifImage;
                         this.pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
                         this.pictureBox1.Dock = DockStyle.Fill;
                         
-                        animationTimer.Start();
+                        // Запускаем анимацию GIF
+                        ImageAnimator.Animate(gifImage, OnFrameChanged);
                     }
                 }
             }
@@ -73,34 +74,24 @@ namespace CustomLogonUI
             {
                 try
                 {
-                    System.IO.File.WriteAllText(@"C:\Windows\Temp\~logonui_gdi_error.log", 
+                    File.WriteAllText(@"C:\Windows\Temp\~logonui_gdi_error.log", 
                         $"Ошибка загрузки GIF: {ex.ToString()}");
                 }
                 catch { }
             }
         }
 
-        private void AnimationTimer_Tick(object sender, EventArgs e)
+        private void OnFrameChanged(object sender, EventArgs e)
         {
             try
             {
-                if (gifImage == null || pictureBox1.Image == null) return;
-
-                frameIndex++;
-                
-                int frameCount = gifImage.GetFrameCount(FrameDimension.Time);
-                if (frameCount <= 0) return;
-
-                if (frameIndex >= frameCount)
-                    frameIndex = 0;
-
-                gifImage.SelectActiveFrame(FrameDimension.Time, frameIndex);
-                pictureBox1.Invalidate();
+                // Обновляем PictureBox при смене кадра
+                if (this.pictureBox1 != null && !this.pictureBox1.IsDisposed)
+                {
+                    this.pictureBox1.Invalidate();
+                }
             }
-            catch
-            {
-                // Игнорируем ошибки в таймере
-            }
+            catch { }
         }
 
         protected override void WndProc(ref Message m)
@@ -123,9 +114,12 @@ namespace CustomLogonUI
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            animationTimer?.Stop();
-            animationTimer?.Dispose();
-            gifImage?.Dispose();
+            // Останавливаем анимацию при закрытии
+            if (gifImage != null)
+            {
+                ImageAnimator.StopAnimate(gifImage, OnFrameChanged);
+                gifImage.Dispose();
+            }
             base.OnFormClosing(e);
         }
     }

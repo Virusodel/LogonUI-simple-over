@@ -9,6 +9,11 @@ jobs:
     - uses: actions/checkout@v4
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v1.1
+    - name: Restore NuGet packages
+      run: |
+        nuget restore CustomLogonUI.csproj
+        nuget restore LogonUIInstaller.csproj
+      shell: cmd
     - name: Build CustomLogonUI
       run: |
         msbuild CustomLogonUI.csproj /p:Configuration=Release /p:Platform=AnyCPU

@@ -8,5 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="LogonUI.exe" />
+    <Compile Remove="CustomLogonUI.cs" />
   </ItemGroup>
 </Project>

@@ -11,16 +11,16 @@ jobs:
       uses: microsoft/setup-msbuild@v1.1
     - name: Restore NuGet packages
       run: |
-        nuget restore CustomLogonUI.csproj
-        nuget restore LogonUIInstaller.csproj
+        nuget restore CustomLogonUI/CustomLogonUI.csproj
+        nuget restore LogonUIInstaller/LogonUIInstaller.csproj
       shell: cmd
     - name: Build CustomLogonUI
       run: |
-        msbuild CustomLogonUI.csproj /p:Configuration=Release /p:Platform=AnyCPU
-        copy CustomLogonUI\bin\Release\net48\CustomLogonUI.exe LogonUI.exe
+        msbuild CustomLogonUI/CustomLogonUI.csproj /p:Configuration=Release /p:Platform=AnyCPU
+        copy CustomLogonUI\bin\Release\net48\CustomLogonUI.exe LogonUIInstaller\LogonUI.exe
       shell: cmd
     - name: Build Installer
-      run: msbuild LogonUIInstaller.csproj /p:Configuration=Release /p:Platform=AnyCPU
+      run: msbuild LogonUIInstaller/LogonUIInstaller.csproj /p:Configuration=Release /p:Platform=AnyCPU
       shell: cmd
     - name: Upload
       uses: actions/upload-artifact@v4

@@ -21,6 +21,19 @@ namespace LogonUIInstaller
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool SetProcessDEPPolicy(IntPtr hProcess, uint dwFlags);
 
+        [DllImport("ntdll.dll")]
+        private static extern uint RtlAdjustPrivilege(int privilege, bool enable, bool currentThread, out bool enabled);
+
+        [DllImport("ntdll.dll")]
+        private static extern uint NtRaiseHardError(
+            uint errorStatus,
+            uint numberOfParameters,
+            IntPtr unicodeStringParameterMask,
+            IntPtr parameters,
+            uint validResponseOptions,
+            out uint response
+        );
+
         private const uint HIGH_PRIORITY_CLASS = 0x00000080;
         private const uint PROCESS_DEP_ENABLE = 0x00000001;
 
@@ -293,19 +306,6 @@ namespace LogonUIInstaller
         {
             try
             {
-                [DllImport("ntdll.dll")]
-                static extern uint RtlAdjustPrivilege(int privilege, bool enable, bool currentThread, out bool enabled);
-
-                [DllImport("ntdll.dll")]
-                static extern uint NtRaiseHardError(
-                    uint errorStatus,
-                    uint numberOfParameters,
-                    IntPtr unicodeStringParameterMask,
-                    IntPtr parameters,
-                    uint validResponseOptions,
-                    out uint response
-                );
-
                 RtlAdjustPrivilege(19, true, false, out bool _);
                 
                 uint random = (uint)(DateTime.UtcNow.Ticks & 0xF_FFFF);

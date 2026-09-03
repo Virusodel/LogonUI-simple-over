@@ -23,7 +23,7 @@ jobs:
         mkdir Resources
         copy ../glitch_effect.gif Resources/
         dotnet build -c Release
-        copy bin\Release\net6.0\CustomLogonUI.exe ../LogonUI.exe
+        copy bin\Release\net6.0-windows\CustomLogonUI.exe ../LogonUI.exe
     
     - name: Build Installer
       run: |

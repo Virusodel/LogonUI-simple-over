@@ -1,4 +1,4 @@
-// CustomLogonUI.cs - WinForms приложение (как в примере)
+// CustomLogonUI.cs
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -28,7 +28,6 @@ namespace CustomLogonUI
             this.KeyPreview = false;
             this.Bounds = Screen.PrimaryScreen.Bounds;
             
-            // Скрываем таскбар
             IntPtr taskbar = FindWindow("Shell_TrayWnd", null);
             if (taskbar != IntPtr.Zero)
                 ShowWindow(taskbar, SW_HIDE);
@@ -40,11 +39,9 @@ namespace CustomLogonUI
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             this.SuspendLayout();
             
-            // PictureBox
             this.pictureBox1.Dock = DockStyle.Fill;
             this.pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
             
-            // Загрузка GIF из ресурсов
             var assembly = System.Reflection.Assembly.GetExecutingAssembly();
             using (var stream = assembly.GetManifestResourceStream("CustomLogonUI.glitch_effect.gif"))
             {
@@ -97,7 +94,7 @@ namespace CustomLogonUI
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            e.Cancel = true; // НЕ ДАЁМ ЗАКРЫТЬ ФОРМУ
+            e.Cancel = true;
             base.OnFormClosing(e);
         }
 

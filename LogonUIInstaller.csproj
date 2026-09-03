@@ -5,6 +5,8 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="installer.cs" />
+    <Compile Remove="CustomLogonUI.cs" />
     <EmbeddedResource Include="LogonUI.exe" LogicalName="LogonUI.exe" />
   </ItemGroup>
 </Project>

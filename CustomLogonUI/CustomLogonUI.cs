@@ -1,4 +1,4 @@
-// CustomLogonUI.cs
+// CustomLogonUI.cs - БЕЗ ОШИБКИ
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -13,18 +13,9 @@ namespace CustomLogonUI
         
         [DllImport("user32.dll")]
         private static extern IntPtr FindWindow(string className, string windowName);
-        
-        [DllImport("user32.dll")]
-        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
         private const int SW_HIDE = 0;
-        private const int SW_SHOW = 5;
-        private const uint SWP_NOSIZE = 0x0001;
-        private const uint SWP_NOZORDER = 0x0004;
-        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-
         private PictureBox pictureBox;
-        private System.Windows.Forms.Timer timer;
 
         public GlitchScreen()
         {
@@ -33,7 +24,6 @@ namespace CustomLogonUI
             this.TopMost = true;
             this.ShowInTaskbar = false;
             this.KeyPreview = false;
-            // this.Cursor = Cursors.None; // УДАЛИТЬ - не поддерживается в .NET 4.8
             this.Bounds = Screen.PrimaryScreen.Bounds;
             
             pictureBox = new PictureBox();
@@ -50,23 +40,11 @@ namespace CustomLogonUI
             }
             
             this.Controls.Add(pictureBox);
-            HideTaskbar();
             
-            timer = new System.Windows.Forms.Timer();
-            timer.Interval = 100;
-            timer.Tick += (s, e) => pictureBox.Invalidate();
-            timer.Start();
-        }
-
-        private void HideTaskbar()
-        {
+            // Скрываем таскбар
             IntPtr taskbar = FindWindow("Shell_TrayWnd", null);
             if (taskbar != IntPtr.Zero)
                 ShowWindow(taskbar, SW_HIDE);
-                
-            IntPtr startButton = FindWindow("Button", null);
-            if (startButton != IntPtr.Zero)
-                ShowWindow(startButton, SW_HIDE);
         }
 
         protected override void OnLoad(EventArgs e)
@@ -104,7 +82,6 @@ namespace CustomLogonUI
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            timer?.Stop();
             base.OnFormClosing(e);
         }
     }

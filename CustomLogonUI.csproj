@@ -5,6 +5,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Platforms>AnyCPU</Platforms>
+    <LangVersion>9.0</LangVersion>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="glitch_effect.gif" />

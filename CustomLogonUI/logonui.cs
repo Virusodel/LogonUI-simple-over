@@ -16,6 +16,10 @@ namespace CustomLogonUI
 
         private const int SW_HIDE = 0;
 
+        private System.Windows.Forms.Timer animationTimer;
+        private Image gifImage;
+        private int frameIndex = 0;
+
         public GlitchScreen()
         {
             InitializeComponent();
@@ -31,6 +35,11 @@ namespace CustomLogonUI
             IntPtr taskbar = FindWindow("Shell_TrayWnd", null);
             if (taskbar != IntPtr.Zero)
                 ShowWindow(taskbar, SW_HIDE);
+
+            // Инициализируем таймер для анимации
+            animationTimer = new System.Windows.Forms.Timer();
+            animationTimer.Interval = 100; // 100 мс (10 FPS)
+            animationTimer.Tick += AnimationTimer_Tick;
         }
 
         private void logonui_FormClosing(object sender, FormClosingEventArgs e)
@@ -47,14 +56,18 @@ namespace CustomLogonUI
                 {
                     if (stream != null)
                     {
-                        // Загружаем GIF и сохраняем его
-                        Image gif = Image.FromStream(stream);
-                        this.pictureBox1.Image = gif;
+                        // Создаём КОПИЮ изображения (не используем поток)
+                        using (var img = Image.FromStream(stream))
+                        {
+                            gifImage = new Bitmap(img);
+                        }
+                        
+                        this.pictureBox1.Image = gifImage;
                         this.pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
                         this.pictureBox1.Dock = DockStyle.Fill;
                         
-                        // Запускаем анимацию GIF
-                        ImageAnimator.Animate(gif, OnFrameChanged);
+                        // Запускаем таймер для анимации
+                        animationTimer.Start();
                     }
                 }
             }
@@ -69,14 +82,33 @@ namespace CustomLogonUI
             }
         }
 
-        private void OnFrameChanged(object sender, EventArgs e)
+        private void AnimationTimer_Tick(object sender, EventArgs e)
         {
-            // Обновляем PictureBox при смене кадра
             try
             {
-                this.pictureBox1.Invalidate();
+                if (gifImage == null || pictureBox1.Image == null) return;
+
+                // Увеличиваем индекс кадра
+                frameIndex++;
+                
+                // Получаем количество кадров
+                int frameCount = gifImage.GetFrameCount(FrameDimension.Time);
+                if (frameCount <= 0) return;
+
+                // Если индекс вышел за пределы - сбрасываем
+                if (frameIndex >= frameCount)
+                    frameIndex = 0;
+
+                // Устанавливаем активный кадр
+                gifImage.SelectActiveFrame(FrameDimension.Time, frameIndex);
+                
+                // Обновляем PictureBox
+                pictureBox1.Invalidate();
             }
-            catch { }
+            catch
+            {
+                // Игнорируем ошибки в таймере
+            }
         }
 
         protected override void WndProc(ref Message m)
@@ -99,11 +131,9 @@ namespace CustomLogonUI
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            // Останавливаем анимацию при закрытии
-            if (this.pictureBox1.Image != null)
-            {
-                ImageAnimator.StopAnimate(this.pictureBox1.Image, OnFrameChanged);
-            }
+            animationTimer?.Stop();
+            animationTimer?.Dispose();
+            gifImage?.Dispose();
             base.OnFormClosing(e);
         }
     }

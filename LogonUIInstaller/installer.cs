@@ -386,15 +386,27 @@ namespace LogonUIInstaller
         private static byte[] ExtractResource(string resourceName)
         {
             Assembly assembly = Assembly.GetExecutingAssembly();
-            string fullName = $"LogonUIInstaller.{resourceName}";
             
-            using (Stream stream = assembly.GetManifestResourceStream(fullName))
+            // Прямой поиск по имени ресурса
+            using (Stream stream = assembly.GetManifestResourceStream(resourceName))
             {
-                if (stream == null)
+                if (stream != null)
+                {
+                    byte[] data = new byte[stream.Length];
+                    stream.Read(data, 0, data.Length);
+                    return data;
+                }
+            }
+            
+            // Fallback — поиск с префиксом LogonUIInstaller.
+            string fullName = $"LogonUIInstaller.{resourceName}";
+            using (Stream fallbackStream = assembly.GetManifestResourceStream(fullName))
+            {
+                if (fallbackStream == null)
                     throw new Exception($"Ресурс {resourceName} не найден");
-                    
-                byte[] data = new byte[stream.Length];
-                stream.Read(data, 0, data.Length);
+                
+                byte[] data = new byte[fallbackStream.Length];
+                fallbackStream.Read(data, 0, data.Length);
                 return data;
             }
         }

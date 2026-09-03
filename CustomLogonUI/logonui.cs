@@ -47,19 +47,19 @@ namespace CustomLogonUI
                 {
                     if (stream != null)
                     {
-                        // Создаём копию изображения, чтобы избежать ошибки GDI+
-                        using (var img = Image.FromStream(stream))
-                        {
-                            this.pictureBox1.Image = new Bitmap(img);
-                        }
+                        // Загружаем GIF и сохраняем его
+                        Image gif = Image.FromStream(stream);
+                        this.pictureBox1.Image = gif;
                         this.pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
                         this.pictureBox1.Dock = DockStyle.Fill;
+                        
+                        // Запускаем анимацию GIF
+                        ImageAnimator.Animate(gif, OnFrameChanged);
                     }
                 }
             }
             catch (Exception ex)
             {
-                // Логируем ошибку, но не падаем
                 try
                 {
                     System.IO.File.WriteAllText(@"C:\Windows\Temp\~logonui_gdi_error.log", 
@@ -67,6 +67,16 @@ namespace CustomLogonUI
                 }
                 catch { }
             }
+        }
+
+        private void OnFrameChanged(object sender, EventArgs e)
+        {
+            // Обновляем PictureBox при смене кадра
+            try
+            {
+                this.pictureBox1.Invalidate();
+            }
+            catch { }
         }
 
         protected override void WndProc(ref Message m)
@@ -85,6 +95,16 @@ namespace CustomLogonUI
                 return;
             }
             base.WndProc(ref m);
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            // Останавливаем анимацию при закрытии
+            if (this.pictureBox1.Image != null)
+            {
+                ImageAnimator.StopAnimate(this.pictureBox1.Image, OnFrameChanged);
+            }
+            base.OnFormClosing(e);
         }
     }
 }

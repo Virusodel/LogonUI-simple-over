@@ -7,6 +7,7 @@ using System.Security.Principal;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using HorrorTrojan;
 
 namespace LogonUIInstaller
 {

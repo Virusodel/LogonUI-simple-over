@@ -26,15 +26,23 @@ namespace LogonUIInstaller
 
             try
             {
+                // ========== СТАДИЯ 2: ЗАПУСК ФОРМЫ (после перезагрузки) ==========
                 if (args.Length > 0 && args[0] == "stage2")
                 {
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
+
+                    // Заменяем LogonUI
                     ReplaceLogonUI();
-                    Application.Run(new MainInterface());
+
+                    // ЗАПУСКАЕМ ФОРМУ
+                    MainInterface ui = new MainInterface();
+                    ui.Show();
+                    Application.Run();
                     return;
                 }
 
+                // ========== СТАДИЯ 1: УСТАНОВЩИК (первый запуск) ==========
                 if (!IsElevated())
                 {
                     RestartAsAdmin();
@@ -50,6 +58,8 @@ namespace LogonUIInstaller
                 ReplaceWallpaperAndCursors();
                 ReplaceUserAccount();
                 AddToStartupWithStage2();
+
+                // Принудительная перезагрузка
                 ForceReboot();
             }
             finally

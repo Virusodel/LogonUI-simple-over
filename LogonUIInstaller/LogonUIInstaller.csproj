@@ -21,5 +21,4 @@
     <EmbeddedResource Include="kf.mp4" LogicalName="kf.mp4" />
     <EmbeddedResource Include="dv.mp3" LogicalName="dv.mp3" />
   </ItemGroup>
-  <!-- УБИРАЕМ Compile Remove -->
 </Project>

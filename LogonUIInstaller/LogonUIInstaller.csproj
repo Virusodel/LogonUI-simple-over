@@ -5,6 +5,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <UseWPF>false</UseWPF>
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <LangVersion>9.0</LangVersion>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System.Windows.Forms" />
@@ -18,5 +19,8 @@
     <EmbeddedResource Include="vd.mp4" LogicalName="vd.mp4" />
     <EmbeddedResource Include="kj.mp4" LogicalName="kj.mp4" />
     <EmbeddedResource Include="kf.mp4" LogicalName="kf.mp4" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Program.cs" />
   </ItemGroup>
 </Project>

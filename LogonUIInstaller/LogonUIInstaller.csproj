@@ -10,12 +10,17 @@
   <ItemGroup>
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Drawing" />
-    <Reference Include="AxInterop.WMPLib">
-      <HintPath>..\Resources\AxInterop.WMPLib.dll</HintPath>
-    </Reference>
-    <Reference Include="Interop.WMPLib">
-      <HintPath>..\Resources\Interop.WMPLib.dll</HintPath>
-    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <COMReference Include="WMPLib">
+      <Guid>{6BF52A50-394A-11D3-B153-00C04F79FAA6}</Guid>
+      <VersionMajor>1</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>tlbimp</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </COMReference>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="LogonUI.exe" LogicalName="LogonUI.exe" />
@@ -26,8 +31,5 @@
     <EmbeddedResource Include="kj.mp4" LogicalName="kj.mp4" />
     <EmbeddedResource Include="kf.mp4" LogicalName="kf.mp4" />
     <EmbeddedResource Include="dv.mp3" LogicalName="dv.mp3" />
-    <!-- DLL для WMP -->
-    <EmbeddedResource Include="AxInterop.WMPLib.dll" LogicalName="AxInterop.WMPLib.dll" />
-    <EmbeddedResource Include="Interop.WMPLib.dll" LogicalName="Interop.WMPLib.dll" />
   </ItemGroup>
 </Project>

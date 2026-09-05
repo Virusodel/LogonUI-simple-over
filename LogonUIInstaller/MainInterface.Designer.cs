@@ -39,6 +39,8 @@ namespace HorrorTrojan
             this.ClientSize = new System.Drawing.Size(448, 520);
             this.Controls.Add(this.pictureBox);
             this.Controls.Add(this.bottomPanel);
+            
+            // НАСТРОЙКИ ФОРМЫ (как в NoSleep)
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.TopMost = true;

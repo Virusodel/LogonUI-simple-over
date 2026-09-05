@@ -4,15 +4,6 @@ namespace HorrorTrojan
     {
         private System.ComponentModel.IContainer components = null;
 
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing && (components != null))
-            {
-                components.Dispose();
-            }
-            base.Dispose(disposing);
-        }
-
         private void InitializeComponent()
         {
             this.pictureBox = new System.Windows.Forms.PictureBox();
@@ -56,6 +47,8 @@ namespace HorrorTrojan
             this.DoubleBuffered = true;
             this.ControlBox = false;
             this.KeyPreview = false;
+            this.Name = "MainInterface";
+            this.Text = "";
 
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).EndInit();
             this.ResumeLayout(false);

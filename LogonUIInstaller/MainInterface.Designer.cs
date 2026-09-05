@@ -48,6 +48,7 @@ namespace HorrorTrojan
             this.ControlBox = false;
             this.KeyPreview = false;
             this.Name = "MainInterface";
+            this.Text = "";
 
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).EndInit();
             this.ResumeLayout(false);

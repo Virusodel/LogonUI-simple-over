@@ -62,7 +62,6 @@ namespace HorrorTrojan
             this.Load += MainInterface_Load;
             originalBackColor = this.BackColor;
 
-            // ПЕРЕМЕЩЕНИЕ ФОРМЫ (через глобальный перехват)
             this.MouseDown += MainInterface_MouseDown;
             this.MouseMove += MainInterface_MouseMove;
             this.MouseUp += MainInterface_MouseUp;
@@ -153,7 +152,6 @@ namespace HorrorTrojan
                 string gifPath = Path.Combine(appDataPath, "hr.gif");
                 if (File.Exists(gifPath))
                 {
-                    // ЗАГРУЖАЕМ GIF ПРЯМО ИЗ ФАЙЛА (НЕ КЛОНИРУЕМ!)
                     originalGifImage = Image.FromFile(gifPath);
                     gifImage = originalGifImage;
                     this.pictureBox.Image = gifImage;
@@ -194,10 +192,12 @@ namespace HorrorTrojan
             mainTimer.Tick += MainTimer_Tick;
             mainTimer.Start();
 
+            // GDI ЭФФЕКТЫ КАЖДЫЕ 3-8 СЕКУНД
             glitchTimer.Interval = rnd.Next(3000, 8000);
             glitchTimer.Tick += GlitchTimer_Tick;
             glitchTimer.Start();
 
+            // ВИДЕО КАЖДЫЕ 30-60 СЕКУНД
             videoTimer.Interval = rnd.Next(30000, 60000);
             videoTimer.Tick += VideoTimer_Tick;
             videoTimer.Start();
@@ -209,11 +209,8 @@ namespace HorrorTrojan
 
         private void FormInvertTimer_Tick(object sender, EventArgs e)
         {
-            if (!isVideoActive && !isGlitchActive)
-            {
-                InvertForm();
-                formInvertTimer.Interval = rnd.Next(10000, 20000);
-            }
+            InvertForm();
+            formInvertTimer.Interval = rnd.Next(10000, 20000);
         }
 
         private void InvertForm()
@@ -229,7 +226,6 @@ namespace HorrorTrojan
                     this.timerLabel.BackColor = Color.Black;
                     this.timerLabel.ForeColor = Color.Red;
                     
-                    // Возвращаем оригинальный GIF (перезагружаем)
                     if (originalGifImage != null)
                     {
                         ImageAnimator.StopAnimate(gifImage, (s, ev) => { });
@@ -249,7 +245,6 @@ namespace HorrorTrojan
                     this.timerLabel.BackColor = Color.White;
                     this.timerLabel.ForeColor = Color.Cyan;
                     
-                    // Инвертируем GIF (СОЗДАЁМ НОВЫЙ BITMAP)
                     if (gifImage != null)
                     {
                         ImageAnimator.StopAnimate(gifImage, (s, ev) => { });
@@ -269,7 +264,6 @@ namespace HorrorTrojan
         {
             try
             {
-                // СОЗДАЁМ НОВОЕ ИЗОБРАЖЕНИЕ С ИНВЕРСИЕЙ
                 Bitmap bmp = new Bitmap(original.Width, original.Height);
                 using (Graphics g = Graphics.FromImage(bmp))
                 {
@@ -315,9 +309,10 @@ namespace HorrorTrojan
             }
         }
 
+        // GDI ЭФФЕКТЫ БЕЗ ОГРАНИЧЕНИЙ
         private void GlitchTimer_Tick(object sender, EventArgs e)
         {
-            if (!isVideoActive && !isGlitchActive)
+            if (!isGlitchActive)
             {
                 isGlitchActive = true;
                 glitchTimer.Interval = rnd.Next(3000, 8000);
@@ -329,9 +324,10 @@ namespace HorrorTrojan
             }
         }
 
+        // ВИДЕО БЕЗ ОГРАНИЧЕНИЙ
         private void VideoTimer_Tick(object sender, EventArgs e)
         {
-            if (!isGlitchActive && !isVideoActive)
+            if (!isVideoActive)
             {
                 isVideoActive = true;
                 videoTimer.Interval = rnd.Next(30000, 60000);
@@ -477,7 +473,7 @@ namespace HorrorTrojan
             catch { }
         }
 
-        // ===== ПЕРЕМЕЩЕНИЕ ФОРМЫ (ИСПРАВЛЕНО) =====
+        // ===== ПЕРЕМЕЩЕНИЕ ФОРМЫ =====
         private void MainInterface_MouseDown(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)

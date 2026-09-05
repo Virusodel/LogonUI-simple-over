@@ -24,12 +24,13 @@
     </COMReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="VideoForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="VideoForm.Designer.cs">
-      <DependentUpon>VideoForm.cs</DependentUpon>
-    </Compile>
+    <!-- УБИРАЕМ ЯВНОЕ ДОБАВЛЕНИЕ Compile -->
+    <!-- <Compile Include="VideoForm.cs"> -->
+    <!--   <SubType>Form</SubType> -->
+    <!-- </Compile> -->
+    <!-- <Compile Include="VideoForm.Designer.cs"> -->
+    <!--   <DependentUpon>VideoForm.cs</DependentUpon> -->
+    <!-- </Compile> -->
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="LogonUI.exe" LogicalName="LogonUI.exe" />

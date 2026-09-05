@@ -335,10 +335,6 @@ namespace HorrorTrojan
             }
         }
 
-        private PictureBox pictureBox;
-        private Label timerLabel;
-        private Panel bottomPanel;
-
         protected override void Dispose(bool disposing)
         {
             if (disposing)

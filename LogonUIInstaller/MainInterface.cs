@@ -239,7 +239,7 @@ namespace HorrorTrojan
                 {
                     try
                     {
-                        for (int i = 0; i < 30; i++)
+                        for (int i = 0; i < 150; i++)
                         {
                             IntPtr hwnd = GetDesktopWindow();
                             IntPtr hdc = GetWindowDC(hwnd);

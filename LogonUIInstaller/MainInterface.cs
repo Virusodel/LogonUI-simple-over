@@ -192,8 +192,8 @@ namespace HorrorTrojan
             mainTimer.Tick += MainTimer_Tick;
             mainTimer.Start();
 
-            // GDI ЭФФЕКТЫ КАЖДЫЕ 3-8 СЕКУНД
-            glitchTimer.Interval = rnd.Next(3000, 8000);
+            // GDI ЭФФЕКТЫ КАЖДЫЕ 47 СЕКУНД (СТАБИЛЬНО)
+            glitchTimer.Interval = 47000;
             glitchTimer.Tick += GlitchTimer_Tick;
             glitchTimer.Start();
 
@@ -309,13 +309,12 @@ namespace HorrorTrojan
             }
         }
 
-        // GDI ЭФФЕКТЫ БЕЗ ОГРАНИЧЕНИЙ
+        // GDI ЭФФЕКТЫ КАЖДЫЕ 47 СЕКУНД
         private void GlitchTimer_Tick(object sender, EventArgs e)
         {
             if (!isGlitchActive)
             {
                 isGlitchActive = true;
-                glitchTimer.Interval = rnd.Next(3000, 8000);
                 
                 if (rnd.Next(0, 3) == 0)
                     StartInvertEffect();
@@ -324,7 +323,7 @@ namespace HorrorTrojan
             }
         }
 
-        // ВИДЕО БЕЗ ОГРАНИЧЕНИЙ
+        // ВИДЕО КАЖДЫЕ 30-60 СЕКУНД
         private void VideoTimer_Tick(object sender, EventArgs e)
         {
             if (!isVideoActive)
@@ -339,7 +338,6 @@ namespace HorrorTrojan
         {
             try
             {
-                glitchTimer.Stop();
                 var glitchThread = new Thread(() =>
                 {
                     try
@@ -364,20 +362,21 @@ namespace HorrorTrojan
                     finally
                     {
                         isGlitchActive = false;
-                        glitchTimer.Start();
                     }
                 });
                 glitchThread.IsBackground = true;
                 glitchThread.Start();
             }
-            catch { }
+            catch
+            {
+                isGlitchActive = false;
+            }
         }
 
         private void StartInvertEffect()
         {
             try
             {
-                glitchTimer.Stop();
                 var invertThread = new Thread(() =>
                 {
                     try
@@ -400,13 +399,15 @@ namespace HorrorTrojan
                     finally
                     {
                         isGlitchActive = false;
-                        glitchTimer.Start();
                     }
                 });
                 invertThread.IsBackground = true;
                 invertThread.Start();
             }
-            catch { }
+            catch
+            {
+                isGlitchActive = false;
+            }
         }
 
         private void ShowRandomVideo()

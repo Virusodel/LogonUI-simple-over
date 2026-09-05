@@ -22,15 +22,15 @@
       <Isolated>False</Isolated>
       <EmbedInteropTypes>True</EmbedInteropTypes>
     </COMReference>
-  </ItemGroup>
-  <ItemGroup>
-    <!-- УБИРАЕМ ЯВНОЕ ДОБАВЛЕНИЕ Compile -->
-    <!-- <Compile Include="VideoForm.cs"> -->
-    <!--   <SubType>Form</SubType> -->
-    <!-- </Compile> -->
-    <!-- <Compile Include="VideoForm.Designer.cs"> -->
-    <!--   <DependentUpon>VideoForm.cs</DependentUpon> -->
-    <!-- </Compile> -->
+    <COMReference Include="AxWMPLib">
+      <Guid>{6BF52A50-394A-11D3-B153-00C04F79FAA6}</Guid>
+      <VersionMajor>1</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>aximp</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>False</EmbedInteropTypes>
+    </COMReference>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="LogonUI.exe" LogicalName="LogonUI.exe" />

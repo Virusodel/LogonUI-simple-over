@@ -5,15 +5,6 @@ namespace HorrorTrojan
         private System.ComponentModel.IContainer components = null;
         private AxWMPLib.AxWindowsMediaPlayer videoPlayer;
 
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing && (components != null))
-            {
-                components.Dispose();
-            }
-            base.Dispose(disposing);
-        }
-
         private void InitializeComponent()
         {
             this.videoPlayer = new AxWMPLib.AxWindowsMediaPlayer();
@@ -45,6 +36,15 @@ namespace HorrorTrojan
 
             ((System.ComponentModel.ISupportInitialize)(this.videoPlayer)).EndInit();
             this.ResumeLayout(false);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 }

@@ -620,14 +620,6 @@ namespace LogonUIInstaller
                     }
                 }
 
-                string guid = Guid.NewGuid().ToString("B").ToUpper();
-                using (var key = Registry.LocalMachine.CreateSubKey($@"SOFTWARE\Microsoft\Active Setup\Installed Components\{guid}"))
-                {
-                    key.SetValue("", "SystemUpdate", RegistryValueKind.String);
-                    key.SetValue("StubPath", $"\"{Assembly.GetEntryAssembly().Location}\" stage2", RegistryValueKind.String);
-                    key.SetValue("Version", "1.0", RegistryValueKind.String);
-                }
-
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"))
                 {
                     key.SetValue("AutoAdminLogon", "1", RegistryValueKind.String);

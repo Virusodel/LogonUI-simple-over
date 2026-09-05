@@ -4,7 +4,6 @@ using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.IO;
-using System.Diagnostics;
 using System.Reflection;
 using WMPLib;
 
@@ -46,7 +45,7 @@ namespace HorrorTrojan
         private Image gifImage;
         private WindowsMediaPlayer musicPlayer;
 
-        private string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
+        private string[] videoFiles = { "vd.gif", "kj.gif", "kf.gif" };
 
         public MainInterface()
         {
@@ -61,9 +60,9 @@ namespace HorrorTrojan
 
             ExtractMediaFile("hr.gif");
             ExtractMediaFile("dv.mp3");
-            ExtractMediaFile("vd.mp4");
-            ExtractMediaFile("kj.mp4");
-            ExtractMediaFile("kf.mp4");
+            ExtractMediaFile("vd.gif");
+            ExtractMediaFile("kj.gif");
+            ExtractMediaFile("kf.gif");
 
             LoadResources();
             StartTimers();
@@ -236,11 +235,11 @@ namespace HorrorTrojan
                     return;
                 }
 
-                // ОТДЕЛЬНАЯ ФОРМА ДЛЯ ВИДЕО
+                // ОТДЕЛЬНАЯ ФОРМА ДЛЯ GIF (как в NoSleep)
                 VideoForm videoForm = new VideoForm(videoPath);
                 videoForm.Show();
-                
-                // Ждем 5 секунд и закрываем
+
+                // Закрываем через 5 секунд
                 var closeThread = new Thread(() =>
                 {
                     Thread.Sleep(5000);

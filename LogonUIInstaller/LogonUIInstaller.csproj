@@ -31,5 +31,9 @@
     <EmbeddedResource Include="kj.mp4" LogicalName="kj.mp4" />
     <EmbeddedResource Include="kf.mp4" LogicalName="kf.mp4" />
     <EmbeddedResource Include="dv.mp3" LogicalName="dv.mp3" />
+    <!-- Добавляем resx -->
+    <EmbeddedResource Include="MainInterface.resx">
+      <DependentUpon>MainInterface.cs</DependentUpon>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>

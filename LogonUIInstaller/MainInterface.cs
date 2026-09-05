@@ -4,6 +4,7 @@ using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.IO;
+using System.Diagnostics; // ← ДОБАВЛЕНО
 using System.Reflection;
 using WMPLib;
 

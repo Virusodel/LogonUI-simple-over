@@ -29,15 +29,5 @@ namespace HorrorTrojan
             }
             catch { }
         }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                gifImage?.Dispose();
-                pictureBox?.Dispose();
-            }
-            base.Dispose(disposing);
-        }
     }
 }

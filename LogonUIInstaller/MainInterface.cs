@@ -6,7 +6,8 @@ using System.Threading;
 using System.IO;
 using System.Diagnostics;
 using System.Reflection;
-using AxWMPLib;
+using AxWMPLib; // Для видео
+using WMPLib;   // Для музыки
 
 namespace HorrorTrojan
 {
@@ -44,8 +45,8 @@ namespace HorrorTrojan
         private Random rnd = new Random();
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
         private Image gifImage;
-        private AxWindowsMediaPlayer videoPlayer;
-        private WMPLib.WindowsMediaPlayer musicPlayer; // МУЗЫКА (не трогаем)
+        private WindowsMediaPlayer musicPlayer; // МУЗЫКА (через WMPLib)
+        private AxWindowsMediaPlayer videoPlayer; // ВИДЕО (через AxWMPLib)
 
         private string[] videoFiles = { "vd.mp4", "kj.mp4", "kf.mp4" };
 
@@ -100,6 +101,12 @@ namespace HorrorTrojan
 
         private void MainInterface_Load(object sender, EventArgs e)
         {
+            // Принудительно показываем форму
+            this.WindowState = FormWindowState.Normal;
+            this.Show();
+            this.BringToFront();
+            this.Focus();
+
             if (!Directory.Exists(appDataPath))
                 Directory.CreateDirectory(appDataPath);
 
@@ -113,12 +120,6 @@ namespace HorrorTrojan
             StartTimers();
             SetupProtection();
             PlayMusic();
-
-            // ПРИНУДИТЕЛЬНЫЙ ПОКАЗ ФОРМЫ
-            this.WindowState = FormWindowState.Normal;
-            this.Show();
-            this.BringToFront();
-            this.Focus();
         }
 
         private void ExtractMediaFile(string fileName)
@@ -173,7 +174,7 @@ namespace HorrorTrojan
                 string musicPath = Path.Combine(appDataPath, "dv.mp3");
                 if (File.Exists(musicPath))
                 {
-                    musicPlayer = new WMPLib.WindowsMediaPlayer();
+                    musicPlayer = new WindowsMediaPlayer();
                     musicPlayer.URL = musicPath;
                     musicPlayer.settings.autoStart = true;
                     musicPlayer.settings.setMode("loop", true);
@@ -412,8 +413,8 @@ namespace HorrorTrojan
                 glitchTimer?.Dispose();
                 videoTimer?.Dispose();
                 gifImage?.Dispose();
-                try { videoPlayer?.close(); } catch { }
                 try { musicPlayer?.close(); } catch { }
+                try { videoPlayer?.close(); } catch { }
             }
             base.Dispose(disposing);
         }

